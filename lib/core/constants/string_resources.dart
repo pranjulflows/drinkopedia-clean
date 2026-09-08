@@ -1,17 +1,11 @@
-
-
+/// Values that arrive verbatim in API payloads.
+///
+/// These are wire-protocol constants, **not** user-facing copy, so they are
+/// never translated. Localised UI strings live in `lib/l10n/*.arb` and are
+/// read through `AppLocalizations.of(context)`.
 class StringsResources {
-  static const email = "Email";
-  static const String businessEmail = "Business email";
-  static const String resetMyPassword = "Reset my password";
-  static const String Signin = "Sign in";
-  static const String products = "Products";
+  StringsResources._();
+
   static const String success = "SUCCESS";
   static const String fail = "FAIL";
-  static const String password = "Password";
-  static const String price = "Price";
-
-
-
-
 }

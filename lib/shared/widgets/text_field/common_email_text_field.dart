@@ -1,5 +1,5 @@
-import 'package:drinkopedia/core/constant_strings/app_constants.dart';
-import 'package:drinkopedia/core/theme/color_style/app_color_palette.dart';
+import 'package:drinkopedia/core/constants/app_constants.dart';
+import 'package:drinkopedia/app/theme/app_color_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -20,23 +20,23 @@ class CommonEmailTextFieldWidget extends StatelessWidget {
   final bool? isCenter;
   final void Function(String)? onFieldSubmitted;
 
-  const CommonEmailTextFieldWidget(
-      {Key? key,
-        this.controller,
-        this.node,
-        required this.hint,
-        required this.keyboardType,
-        this.textInputAction,
-        required this.decoration,
-        this.showColorBorder,
-        this.validator,
-        this.onChange,
-        this.enabled,
-        this.readOnly,
-        this.onTap,
-        this.isCenter = false,
-        this.onFieldSubmitted})
-      : super(key: key);
+  const CommonEmailTextFieldWidget({
+    super.key,
+    this.controller,
+    this.node,
+    required this.hint,
+    required this.keyboardType,
+    this.textInputAction,
+    required this.decoration,
+    this.showColorBorder,
+    this.validator,
+    this.onChange,
+    this.enabled,
+    this.readOnly,
+    this.onTap,
+    this.isCenter = false,
+    this.onFieldSubmitted,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -51,19 +51,18 @@ class CommonEmailTextFieldWidget extends StatelessWidget {
       controller: controller,
       focusNode: node,
       inputFormatters: [
-        FilteringTextInputFormatter.allow(
-          RegExp('[a-zA-Z0-9@._]'),
-        ),
+        FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9@._]')),
       ],
       onChanged: onChange,
       enabled: true,
       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-          color:  lightColorPalette.whiteColorPrimary.shade800,
-          fontWeight: FontWeight.w400,
-          fontSize: 16.sp,
-          fontFamily: AppConstants.rota,
-          letterSpacing: 0.41,
-          height: 1.24),
+        color: lightColorPalette.whiteColorPrimary.shade800,
+        fontWeight: FontWeight.w400,
+        fontSize: 16.sp,
+        fontFamily: AppConstants.rota,
+        letterSpacing: 0.41,
+        height: 1.24,
+      ),
       keyboardType: TextInputType.emailAddress,
       textInputAction: textInputAction ?? TextInputAction.next,
       decoration: decoration,

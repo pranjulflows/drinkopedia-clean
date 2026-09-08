@@ -1,4 +1,7 @@
-import 'package:get/get.dart';
+/// Matches a string made up entirely of digits.
+///
+/// Replaces GetX's `String.isNumericOnly` extension.
+final RegExp _numericOnly = RegExp(r'^\d+$');
 
 extension StringExtensions on String? {
   String? toStringConversion() {
@@ -8,7 +11,7 @@ extension StringExtensions on String? {
 
   int toIntConversion() {
     var string = this ?? "";
-    if (string != "" && string != "null" && string.isNumericOnly) {
+    if (string != "" && string != "null" && _numericOnly.hasMatch(string)) {
       return int.parse(string);
     }
     return 0;
@@ -16,7 +19,7 @@ extension StringExtensions on String? {
 
   int toIntConversionDefaultOne() {
     var string = this ?? "";
-    if (string != "" && string != "null" && string.isNumericOnly) {
+    if (string != "" && string != "null" && _numericOnly.hasMatch(string)) {
       return int.parse(string);
     }
     return 1;

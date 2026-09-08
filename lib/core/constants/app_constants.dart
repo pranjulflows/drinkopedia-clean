@@ -1,10 +1,8 @@
-import 'package:get/get_navigation/src/routes/transitions_type.dart';
-
 class AppConstants {
-  static const Transition transition = Transition.cupertino;
+  AppConstants._();
+
   static const int transitionDuration = 250;
-  static int popBackDelay300 = 300;
+  static const int popBackDelay300 = 300;
   static const String rota = "Rota";
   static const String currency = "\$";
-
 }

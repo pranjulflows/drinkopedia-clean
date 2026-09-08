@@ -1,0 +1,21 @@
+{
+  "@@locale": "fr",
+  "appTitle": "Drinkopedia",
+  "email": "E-mail",
+  "businessEmail": "E-mail professionnel",
+  "resetMyPassword": "Réinitialiser mon mot de passe",
+  "signIn": "S'identifier",
+  "products": "Des produits",
+  "password": "Mot de passe",
+  "price": "Prix",
+  "catalogueTitle": "Drinkopedia",
+  "searchSpirits": "Rechercher des spiritueux",
+  "theStory": "L'histoire",
+  "noStoryYet": "Nous n'avons pas encore l'histoire de celui-ci.",
+  "somethingWentWrong": "Une erreur s'est produite",
+  "nothingHere": "Rien pour le moment",
+  "noMatches": "Aucun spiritueux ne correspond à votre recherche",
+  "retry": "Réessayer",
+  "refresh": "Actualiser",
+  "abvValue": "{value} % vol."
+}

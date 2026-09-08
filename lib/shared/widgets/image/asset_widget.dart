@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:drinkopedia/core/common_ui/image_assets/asset.dart';
-import 'package:drinkopedia/core/theme/color_style/app_color_palette.dart';
+import 'package:drinkopedia/shared/widgets/image/asset.dart';
+import 'package:drinkopedia/app/theme/app_color_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
 
 class AssetWidget extends StatelessWidget {
   final Asset asset;
@@ -18,18 +17,18 @@ class AssetWidget extends StatelessWidget {
   final String? lastName;
   final bool? isCircular;
 
-  const AssetWidget(
-      {Key? key,
-      required this.asset,
-      this.width,
-      this.file,
-      this.firstName,
-      this.isCircular = false,
-      this.lastName,
-      this.height,
-      this.color,
-      this.boxFit})
-      : super(key: key);
+  const AssetWidget({
+    super.key,
+    required this.asset,
+    this.width,
+    this.file,
+    this.firstName,
+    this.isCircular = false,
+    this.lastName,
+    this.height,
+    this.color,
+    this.boxFit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,24 +43,19 @@ class AssetWidget extends StatelessWidget {
 
       case AssetType.png:
         return Image(
-            image: AssetImage(asset.path),
-            width: width,
-            height: height,
-            color: color);
+          image: AssetImage(asset.path),
+          width: width,
+          height: height,
+          color: color,
+        );
       case AssetType.svg:
         return SvgPicture.asset(
           asset.path,
           width: width,
           height: height,
-          color: color,
-          fit: boxFit ?? BoxFit.contain,
-        );
-      case AssetType.file:
-        return Image.file(
-          asset.file!,
-          width: width,
-          height: height,
-          color: color,
+          colorFilter: color == null
+              ? null
+              : ColorFilter.mode(color!, BlendMode.srcIn),
           fit: boxFit ?? BoxFit.contain,
         );
       case AssetType.file:
@@ -76,9 +70,10 @@ class AssetWidget extends StatelessWidget {
         return CachedNetworkImage(
           imageUrl: asset.path,
           placeholder: (context, url) => SizedBox(
-              height: height ?? 100 - 40.0,
-              width: width ?? 100 - 40.0,
-              child: Center(child: CircularProgressIndicator())),
+            height: height ?? 100 - 40.0,
+            width: width ?? 100 - 40.0,
+            child: Center(child: CircularProgressIndicator()),
+          ),
           errorWidget: (context, url, error) {
             return isCircular!
                 ? AvtarNameIcon(
@@ -88,7 +83,8 @@ class AssetWidget extends StatelessWidget {
                     width: width,
                     textColor: lightColorPalette.secondarySwatch.shade400,
                     backgroundColor: lightColorPalette.secondarySwatch.shade100,
-                    isCircular: isCircular)
+                    isCircular: isCircular,
+                  )
                 : Container();
           },
           height: height,
@@ -109,7 +105,7 @@ class AvtarNameIcon extends StatelessWidget {
   final bool? isCircular;
 
   const AvtarNameIcon({
-    Key? key,
+    super.key,
     required this.firstName,
     required this.lastName,
     this.backgroundColor = Colors.white,
@@ -117,13 +113,13 @@ class AvtarNameIcon extends StatelessWidget {
     this.width = 30,
     this.isCircular,
     required this.textColor,
-  }) : super(key: key);
+  });
 
   String get firstLetter =>
-      this.firstName != "" ? this.firstName.substring(0, 1).toUpperCase() : "G";
+      firstName != "" ? firstName.substring(0, 1).toUpperCase() : "G";
 
   String get lastLetter =>
-      this.lastName != "" ? this.lastName.substring(0, 1).toUpperCase() : "C";
+      lastName != "" ? lastName.substring(0, 1).toUpperCase() : "C";
 
   @override
   Widget build(BuildContext context) {
@@ -133,29 +129,32 @@ class AvtarNameIcon extends StatelessWidget {
       width: width,
       decoration: BoxDecoration(
         shape: isCircular! ? BoxShape.circle : BoxShape.rectangle,
-        color: this.backgroundColor,
+        color: backgroundColor,
         border: Border.all(
-            color: !isCircular! ? backgroundColor : textColor,
-            width: isCircular! ? 0 : 1),
+          color: !isCircular! ? backgroundColor : textColor,
+          width: isCircular! ? 0 : 1,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            this.firstLetter,
-            style: Theme.of(context).textTheme.headline1?.copyWith(
-                fontSize: !isCircular! || height! < 62 ? 24 : 34,
-                fontWeight: FontWeight.w500,
-                color: textColor),
+            firstLetter,
+            style: Theme.of(context).textTheme.displayLarge?.copyWith(
+              fontSize: !isCircular! || height! < 62 ? 24 : 34,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
           ),
           Text(
-            this.lastLetter,
-            style: Theme.of(context).textTheme.headline1?.copyWith(
-                fontSize: !isCircular! || height! < 62 ? 24 : 34,
-                fontWeight: FontWeight.w500,
-                color: textColor),
-          )
+            lastLetter,
+            style: Theme.of(context).textTheme.displayLarge?.copyWith(
+              fontSize: !isCircular! || height! < 62 ? 24 : 34,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
+          ),
         ],
       ),
     );

@@ -1,0 +1,80 @@
+{
+  "@@locale": "en",
+  "appTitle": "Drinkopedia",
+  "@appTitle": {
+    "description": "Application name, shown in the task switcher and on the landing screen"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Label for the email input field"
+  },
+  "businessEmail": "Business email",
+  "@businessEmail": {
+    "description": "Label for the business email input field"
+  },
+  "resetMyPassword": "Reset my password",
+  "@resetMyPassword": {
+    "description": "Action that starts the password reset flow"
+  },
+  "signIn": "Sign in",
+  "@signIn": {
+    "description": "Label of the sign-in button"
+  },
+  "products": "Products",
+  "@products": {
+    "description": "Title of the products section"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Label for the password input field"
+  },
+  "price": "Price",
+  "@price": {
+    "description": "Label for a product price"
+  },
+  "catalogueTitle": "Drinkopedia",
+  "@catalogueTitle": {
+    "description": "Title of the spirits catalogue screen"
+  },
+  "searchSpirits": "Search spirits",
+  "@searchSpirits": {
+    "description": "Placeholder in the catalogue search field"
+  },
+  "theStory": "The Story",
+  "@theStory": {
+    "description": "Heading above a spirit's origin and production narrative"
+  },
+  "noStoryYet": "We don't have the story for this one yet.",
+  "@noStoryYet": {
+    "description": "Shown when a spirit has no description upstream"
+  },
+  "somethingWentWrong": "Something went wrong",
+  "@somethingWentWrong": {
+    "description": "Generic error heading"
+  },
+  "nothingHere": "Nothing here yet",
+  "@nothingHere": {
+    "description": "Heading for an empty result"
+  },
+  "noMatches": "No spirits match your search",
+  "@noMatches": {
+    "description": "Shown when a search filters everything out"
+  },
+  "retry": "Try again",
+  "@retry": {
+    "description": "Label of the retry button"
+  },
+  "refresh": "Refresh",
+  "@refresh": {
+    "description": "Tooltip of the refresh action"
+  },
+  "abvValue": "{value}% ABV",
+  "@abvValue": {
+    "description": "Alcohol by volume shown on a spirit's detail chip",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  }
+}

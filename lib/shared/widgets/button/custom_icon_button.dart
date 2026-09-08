@@ -9,25 +9,26 @@ class CustomIconButton extends StatelessWidget {
   final Color? color;
   final void Function()? onPressed;
 
-  const CustomIconButton(
-      {Key? key,
-        required this.child,
-        this.iconSize,
-        this.color,
-        required this.onPressed,
-        this.padding})
-      : super(key: key);
+  const CustomIconButton({
+    super.key,
+    required this.child,
+    this.iconSize,
+    this.color,
+    required this.onPressed,
+    this.padding,
+  });
 
   @override
   Widget build(BuildContext context) {
     return CupertinoTheme(
-        data: CupertinoThemeData(primaryColor: color ?? Colors.transparent),
-        child: CupertinoButton.filled(
-          borderRadius: BorderRadius.zero,
-          child: child,
-          minSize: iconSize ?? null,
-          padding: padding ?? EdgeInsets.all(12.r),
-          onPressed: onPressed,
-        ));
+      data: CupertinoThemeData(primaryColor: color ?? Colors.transparent),
+      child: CupertinoButton.filled(
+        borderRadius: BorderRadius.zero,
+        minimumSize: iconSize == null ? null : Size.square(iconSize!),
+        padding: padding ?? EdgeInsets.all(12.r),
+        onPressed: onPressed,
+        child: child,
+      ),
+    );
   }
 }

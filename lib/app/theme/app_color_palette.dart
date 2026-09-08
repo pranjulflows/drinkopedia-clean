@@ -19,23 +19,24 @@ class AppColorPalette {
   final Color roundCircleColor;
   final Color indicatorColor;
 
-  const AppColorPalette(
-      {required this.primarySwatch,
-        required this.darkSwatch,
-        required this.secondarySwatch,
-        required this.additionalSwatch1,
-        required this.additionalSwatch2,
-        required this.yellowSwatch3,
-        required this.purpleSwatch,
-        required this.redSwatch,
-        required this.greenSwatch,
-        required this.textColorPrimary,
-        required this.whiteColorPrimary,
-        required this.transparentColor,
-        required this.blacktextColor,
-        required this.hinttextColor,
-        required this.indicatorColor,
-        required this.roundCircleColor});
+  const AppColorPalette({
+    required this.primarySwatch,
+    required this.darkSwatch,
+    required this.secondarySwatch,
+    required this.additionalSwatch1,
+    required this.additionalSwatch2,
+    required this.yellowSwatch3,
+    required this.purpleSwatch,
+    required this.redSwatch,
+    required this.greenSwatch,
+    required this.textColorPrimary,
+    required this.whiteColorPrimary,
+    required this.transparentColor,
+    required this.blacktextColor,
+    required this.hinttextColor,
+    required this.indicatorColor,
+    required this.roundCircleColor,
+  });
 }
 
 const AppColorPalette lightColorPalette = AppColorPalette(
@@ -70,17 +71,13 @@ const AppColorPalette lightColorPalette = AppColorPalette(
     200: Color(0x66FF5A75),
     100: Color(0x33FF5A75),
   }),
-  additionalSwatch2: MaterialColor(800, {
-    100: Color(0xFF9DF4F4),
+  additionalSwatch2: MaterialColor(800, {100: Color(0xFF9DF4F4)}),
+  yellowSwatch3: MaterialColor(800, {100: Color(0xFFF7931A)}),
+  purpleSwatch: MaterialColor(900, {
+    900: Color(0xFF8146EB),
+    800: Color(0xFF627EEA),
   }),
-  yellowSwatch3: MaterialColor(800, {
-    100: Color(0xFFF7931A),
-  }),
-  purpleSwatch:
-  MaterialColor(900, {900: Color(0xFF8146EB), 800: Color(0xFF627EEA)}),
-  greenSwatch: MaterialColor(900, {
-    900: Color(0xFF3CB054),
-  }),
+  greenSwatch: MaterialColor(900, {900: Color(0xFF3CB054)}),
   redSwatch: MaterialColor(900, {
     900: Color(0xFFB30D23),
     100: Color(0xFFFF5A75),
@@ -105,7 +102,7 @@ const AppColorPalette lightColorPalette = AppColorPalette(
   indicatorColor: Color(0xff8F92A1),
   roundCircleColor: Color(0xff8F92A1),
 );
- TextTheme lightTextTheme = TextTheme(
+TextTheme lightTextTheme = TextTheme(
   ///Mobile/Header1
   displayLarge: TextStyle(
     fontSize: 28.sp,
