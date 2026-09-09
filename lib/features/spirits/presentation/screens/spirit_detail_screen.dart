@@ -98,7 +98,9 @@ class _SpiritContent extends StatelessWidget {
           pinned: true,
           automaticallyImplyLeading: false,
           leading: Padding(
-            padding: const EdgeInsets.only(left: 16, top: 8),
+            // Left inset only. A top inset pushed the button past the bar's
+            // bottom rule; letting the app bar centre it keeps the two apart.
+            padding: const EdgeInsets.only(left: _backInset),
             child: HardEdgeIconButton(
               icon: Icons.arrow_back,
               onPressed: () => Navigator.of(context).maybePop(),
@@ -106,7 +108,7 @@ class _SpiritContent extends StatelessWidget {
               background: theme.colorScheme.surface,
             ),
           ),
-          leadingWidth: 78,
+          leadingWidth: _backExtent + 8,
           flexibleSpace: _CollapsingHeader(spirit: spirit),
         ),
         SliverPadding(
@@ -166,6 +168,21 @@ class _SpiritContent extends StatelessWidget {
 
 /// How tall the artwork header is before any scrolling.
 const double _expandedHeight = 300;
+
+/// Where the back button sits, and how much room it needs.
+///
+/// The collapsed title is a separate overlay rather than the app bar's own
+/// `title`, so nothing lays the two out together — the gap between them has to
+/// be derived rather than guessed, or the title creeps up against the button.
+const double _backInset = 16;
+const double _backSize = 46;
+
+/// The button's right edge, shadow included.
+final double _backExtent = _backInset + _backSize + AppEdges.shadowCompact.dx;
+
+/// Breathing room between the button and the title. Generous on purpose: the
+/// button is a filled block with a shadow, so a tight gap reads as a collision.
+const double _titleGap = 22;
 
 /// The artwork, and the name sliding into the bar as it collapses.
 ///
@@ -266,14 +283,20 @@ class _CollapsedTitleBar extends StatelessWidget {
       ),
       child: Padding(
         // Clears the back button, which sits above this in the app bar.
-        padding: EdgeInsets.only(top: topInset, left: 78, right: 20),
+        padding: EdgeInsets.only(
+          top: topInset,
+          left: _backExtent + _titleGap,
+          right: 20,
+        ),
         child: Align(
           alignment: Alignment.centerLeft,
           child: Transform.translate(
             offset: Offset(0, offset),
             child: Text(
               name.toUpperCase(),
-              style: theme.textTheme.titleMedium,
+              // A bar title, not a caption: the card-name size disappeared
+              // beside a 46pt button in a direction built on heavy type.
+              style: theme.textTheme.headlineSmall,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
