@@ -19,12 +19,22 @@ class HardEdgeSearchField extends StatefulWidget {
     required this.hintText,
     required this.onChanged,
     required this.clearTooltip,
+    this.enabled = true,
     super.key,
   });
 
   final String hintText;
   final ValueChanged<String> onChanged;
   final String clearTooltip;
+
+  /// Whether there is anything to search.
+  ///
+  /// Filtering is local, over whatever the catalogue managed to load. With an
+  /// empty cache and a failed refresh there is nothing to filter, and a live
+  /// field that silently swallows every keystroke reads as a broken app rather
+  /// than as an empty one. Disabled, it sends attention to the retry button
+  /// instead.
+  final bool enabled;
 
   @override
   State<HardEdgeSearchField> createState() => _HardEdgeSearchFieldState();
@@ -48,6 +58,18 @@ class _HardEdgeSearchFieldState extends State<HardEdgeSearchField> {
   }
 
   @override
+  void didUpdateWidget(HardEdgeSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Losing the catalogue strands whatever was typed, and the query would
+    // still be filtering an empty list when data returns.
+    if (oldWidget.enabled && !widget.enabled && _controller.text.isNotEmpty) {
+      _controller.clear();
+      widget.onChanged('');
+      _focusNode.unfocus();
+    }
+  }
+
+  @override
   void dispose() {
     _controller
       ..removeListener(_syncHasText)
@@ -67,16 +89,26 @@ class _HardEdgeSearchFieldState extends State<HardEdgeSearchField> {
     final ThemeData theme = Theme.of(context);
 
     return HardEdgePanel(
-      shadowOffset: AppEdges.shadowField,
+      // Flat and in the inactive tone when there is nothing to search: in this
+      // direction the offset shadow is what marks a surface as live.
+      color: widget.enabled ? null : theme.colorScheme.surfaceContainerHighest,
+      shadowOffset: widget.enabled ? AppEdges.shadowField : Offset.zero,
       padding: const EdgeInsets.only(left: 12),
       child: SizedBox(
         height: 48,
         child: Row(
           children: <Widget>[
-            Icon(Icons.search, size: 18, color: theme.colorScheme.onSurface),
+            Icon(
+              Icons.search,
+              size: 18,
+              color: widget.enabled
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 9),
             Expanded(
               child: TextField(
+                enabled: widget.enabled,
                 controller: _controller,
                 focusNode: _focusNode,
                 onChanged: widget.onChanged,
@@ -98,7 +130,7 @@ class _HardEdgeSearchFieldState extends State<HardEdgeSearchField> {
             ),
             // Only present once there is something to clear, so the field is
             // not cluttered while it is empty.
-            if (_hasText)
+            if (_hasText && widget.enabled)
               Tooltip(
                 message: widget.clearTooltip,
                 child: Semantics(
