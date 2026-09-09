@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [ "main", "development" ]
+  # Almost every PR targets `development`, so watching only `main` would leave
+  # the branch that receives all the work unchecked. See docs/branching-strategy.md.
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "development" ]
 
 jobs:
   build:
