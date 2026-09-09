@@ -68,6 +68,15 @@
   "@refresh": {
     "description": "Tooltip of the refresh action"
   },
+  "spiritCount": "{count, plural, =1{1 spirit} other{{count} spirits}}",
+  "@spiritCount": {
+    "description": "Count of spirits currently listed on the catalogue screen",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "abvValue": "{value}% ABV",
   "@abvValue": {
     "description": "Alcohol by volume shown on a spirit's detail chip",
