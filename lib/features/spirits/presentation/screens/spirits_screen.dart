@@ -1,4 +1,5 @@
 import 'package:drinkopedia/core/presentation/view_state.dart';
+import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/presentation/providers/spirits_provider.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card.dart';
@@ -49,6 +50,11 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
     final ThemeData theme = Theme.of(context);
     final AppLocalizations l10n = AppLocalizations.of(context)!;
     final SpiritsProvider provider = context.watch<SpiritsProvider>();
+    // Ordering only — the taste intro floats what was picked to the top and
+    // never hides the rest.
+    final List<Spirit> visible = provider.visibleFor(
+      context.watch<OnboardingProvider>().categories,
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -93,14 +99,14 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                         clearTooltip: l10n.clearSearch,
                       ),
                       const SizedBox(height: 14),
-                      _CountLabel(provider: provider),
+                      _CountLabel(count: visible.length),
                     ],
                   ),
                 ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
-                sliver: _SpiritsBody(provider: provider),
+                sliver: _SpiritsBody(provider: provider, visible: visible),
               ),
             ],
           ),
@@ -113,13 +119,12 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
 /// How many spirits are on screen. Hidden until there is a real number, so it
 /// never flashes a zero while the first load is in flight.
 class _CountLabel extends StatelessWidget {
-  const _CountLabel({required this.provider});
+  const _CountLabel({required this.count});
 
-  final SpiritsProvider provider;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    final int count = provider.visibleSpirits.length;
     if (count == 0) return const SizedBox(height: 4);
 
     final ThemeData theme = Theme.of(context);
@@ -136,9 +141,13 @@ class _CountLabel extends StatelessWidget {
 }
 
 class _SpiritsBody extends StatelessWidget {
-  const _SpiritsBody({required this.provider});
+  const _SpiritsBody({required this.provider, required this.visible});
 
   final SpiritsProvider provider;
+
+  /// The catalogue after search and taste ordering, resolved by the screen so
+  /// the grid and the count row can never disagree.
+  final List<Spirit> visible;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +172,7 @@ class _SpiritsBody extends StatelessWidget {
       ),
       LoadingState<List<Spirit>>() ||
       SuccessState<List<Spirit>>() => _SpiritsGrid(
-        spirits: provider.visibleSpirits,
+        spirits: visible,
         emptyLabel: provider.query.trim().isEmpty ? null : l10n.noMatches,
       ),
     };

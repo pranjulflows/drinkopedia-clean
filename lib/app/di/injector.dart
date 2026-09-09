@@ -1,8 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
+import 'package:drinkopedia/core/database/daos/preferences_dao.dart';
 import 'package:drinkopedia/core/database/daos/spirits_dao.dart';
 import 'package:drinkopedia/core/network/dio_factory.dart';
 import 'package:drinkopedia/core/network/endpoints/api_sources.dart';
+import 'package:drinkopedia/features/onboarding/data/repositories/taste_repository_impl.dart';
+import 'package:drinkopedia/features/onboarding/domain/repositories/taste_repository.dart';
+import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/spirit_remote_data_source.dart';
 import 'package:drinkopedia/features/spirits/data/repositories/spirit_repository_impl.dart';
@@ -32,6 +36,7 @@ List<SingleChildWidget> buildProviders({
   return <SingleChildWidget>[
     Provider<AppDatabase>.value(value: db),
     Provider<SpiritsDao>(create: (_) => SpiritsDao(db)),
+    Provider<PreferencesDao>(create: (_) => PreferencesDao(db)),
 
     // One Dio per upstream source: different base URLs and header
     // requirements, so a shared instance would leak headers across sources.
@@ -67,11 +72,23 @@ List<SingleChildWidget> buildProviders({
       create: (_) => const GoRouterNavigationService(),
     ),
 
+    Provider<TasteRepository>(
+      create: (BuildContext context) =>
+          TasteRepositoryImpl(dao: context.read<PreferencesDao>()),
+    ),
+
     // Catalogue state is app-scoped so it survives navigation; detail state is
     // created per screen instead.
     ChangeNotifierProvider<SpiritsProvider>(
       create: (BuildContext context) =>
           SpiritsProvider(getSpirits: context.read<GetSpirits>()),
+    ),
+
+    // App-scoped: the intro writes the taste preference, and the catalogue
+    // reads it back to decide what to show first, so it outlives the screen.
+    ChangeNotifierProvider<OnboardingProvider>(
+      create: (BuildContext context) =>
+          OnboardingProvider(repository: context.read<TasteRepository>()),
     ),
   ];
 }

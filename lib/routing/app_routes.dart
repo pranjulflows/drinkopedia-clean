@@ -1,3 +1,4 @@
+import 'package:drinkopedia/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirit_detail_screen.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirits_screen.dart';
@@ -14,6 +15,22 @@ part 'app_routes.g.dart';
 /// Path parameters carry everything a route genuinely needs; `$extra` only ever
 /// carries an optimisation. `$extra` does not survive a deep link, an app
 /// restart, or a process death, so every screen must still work without it.
+/// `/onboarding` — the taste intro.
+///
+/// A real route rather than a screen swapped in above the catalogue, so it can
+/// be opened directly when the app decides the intro has not been through, and
+/// reached in a test without faking app state.
+@TypedGoRoute<OnboardingRoute>(path: OnboardingRoute.path)
+class OnboardingRoute extends GoRouteData with $OnboardingRoute {
+  const OnboardingRoute();
+
+  static const String path = '/onboarding';
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const OnboardingScreen();
+}
+
 @TypedGoRoute<SpiritsRoute>(
   path: SpiritsRoute.path,
   routes: <TypedGoRoute<GoRouteData>>[

@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:drinkopedia/core/error/failure.dart';
 import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
+import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
 import 'package:drinkopedia/features/spirits/domain/repositories/spirit_repository.dart';
 import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits.dart';
 import 'package:drinkopedia/features/spirits/presentation/providers/spirits_provider.dart';
@@ -73,6 +74,56 @@ void main() {
 
     provider.search('');
     expect(provider.visibleSpirits.length, 3);
+  });
+
+  group('taste ordering', () {
+    const List<Spirit> catalogue = <Spirit>[
+      Spirit(id: '1', name: 'Absinthe', type: 'Spirit'),
+      Spirit(id: '2', name: 'Bourbon', type: 'Whiskey'),
+      Spirit(id: '3', name: 'Cachaca', type: 'Spirit'),
+      Spirit(id: '4', name: 'Scotch', type: 'Whisky'),
+    ];
+
+    test('floats picked categories to the top, keeping the rest', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      final List<Spirit> ordered = provider.visibleFor(<SpiritCategory>{
+        SpiritCategory.whiskey,
+      });
+
+      expect(
+        ordered.map((Spirit s) => s.name),
+        <String>['Bourbon', 'Scotch', 'Absinthe', 'Cachaca'],
+        reason:
+            'Whiskey and Whisky both normalise to whiskey and come first; '
+            'nothing is dropped, and each group stays alphabetical',
+      );
+    });
+
+    test('an empty pick leaves the order alone', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      expect(
+        provider.visibleFor(const <SpiritCategory>{}).map((Spirit s) => s.name),
+        provider.visibleSpirits.map((Spirit s) => s.name),
+      );
+    });
+
+    test('ordering composes with the search filter', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      provider.search('c');
+
+      final List<Spirit> ordered = provider.visibleFor(<SpiritCategory>{
+        SpiritCategory.whiskey,
+      });
+
+      // Only the search hits — Absinthe and Bourbon match neither on name nor
+      // type — and Scotch, being a Whisky, floats above Cachaca.
+      expect(ordered.map((Spirit s) => s.name), <String>['Scotch', 'Cachaca']);
+    });
   });
 
   test('keeps previous data visible while refreshing', () async {

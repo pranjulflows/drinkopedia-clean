@@ -25,8 +25,13 @@ class AppColors {
   /// Secondary text. Still readable on [paper]; never used for borders.
   static const Color mutedInk = Color(0xFF5A564D);
 
-  /// Loading-skeleton blocks.
-  static const Color skeleton = Color(0xFFE4DFD2);
+  /// Loading-skeleton blocks, and the tone the shimmer pulses to.
+  ///
+  /// Both are darker than [panel] on purpose: the skeleton sits *inside* a
+  /// white card, so a highlight that reaches white makes the blocks vanish and
+  /// the card read as loaded-but-empty.
+  static const Color skeleton = Color(0xFFDCD6C7);
+  static const Color skeletonHighlight = Color(0xFFEBE7DC);
 
   // ----------------------------------------------------------------- dark --
   //
@@ -39,7 +44,8 @@ class AppColors {
   static const Color paperDark = Color(0xFF0A0A0A);
   static const Color panelDark = Color(0xFF16160F);
   static const Color mutedInkDark = Color(0xFFA7A196);
-  static const Color skeletonDark = Color(0xFF262620);
+  static const Color skeletonDark = Color(0xFF2A2A23);
+  static const Color skeletonHighlightDark = Color(0xFF3A3A31);
 
   // -------------------------------------------------------------- accents --
 

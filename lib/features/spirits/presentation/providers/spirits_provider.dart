@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:drinkopedia/core/error/failure.dart';
 import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
+import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
 import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits.dart';
 import 'package:flutter/foundation.dart';
 
@@ -18,6 +19,32 @@ class SpiritsProvider extends ChangeNotifier {
 
   String _query = '';
   String get query => _query;
+
+  /// Catalogue after the active search filter, with the categories the user
+  /// picked in the taste intro floated to the top.
+  ///
+  /// Ordering, not filtering: nothing is ever hidden, because the intro is a
+  /// preference and not a subscription. A stable sort keeps the alphabetical
+  /// order inside each group. An empty [preferred] leaves the list untouched,
+  /// which is what skipping the intro produces.
+  List<Spirit> visibleFor(Set<SpiritCategory> preferred) {
+    final List<Spirit> visible = visibleSpirits;
+    if (preferred.isEmpty) return visible;
+
+    final List<Spirit> ordered = List<Spirit>.of(visible);
+    // Dart's sort is not stable, so ties are broken on the original index
+    // rather than left to chance.
+    final Map<String, int> position = <String, int>{
+      for (int i = 0; i < ordered.length; i++) ordered[i].id: i,
+    };
+    ordered.sort((Spirit a, Spirit b) {
+      final bool aWanted = preferred.contains(SpiritCategory.fromType(a.type));
+      final bool bWanted = preferred.contains(SpiritCategory.fromType(b.type));
+      if (aWanted != bWanted) return aWanted ? -1 : 1;
+      return position[a.id]!.compareTo(position[b.id]!);
+    });
+    return ordered;
+  }
 
   /// Catalogue after the active search filter.
   List<Spirit> get visibleSpirits {

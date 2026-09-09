@@ -72,6 +72,102 @@
   "@clearSearch": {
     "description": "Tooltip on the button that empties the catalogue search field"
   },
+  "onboardingWelcomeTitle": "44 spirits.\nEvery one\nhas a story.",
+  "@onboardingWelcomeTitle": {
+    "description": "Headline on the first step of the taste intro"
+  },
+  "onboardingWelcomeBody": "This is a reference, not a recipe list. Two taps and the shelf is yours.",
+  "@onboardingWelcomeBody": {
+    "description": "Supporting line on the first step of the taste intro"
+  },
+  "onboardingStart": "Start",
+  "@onboardingStart": {
+    "description": "Advances from the first step of the taste intro"
+  },
+  "onboardingTasteTitle": "What are you into?",
+  "@onboardingTasteTitle": {
+    "description": "Headline on the category picker step"
+  },
+  "onboardingTasteBody": "Pick a few. We use them to sort the shelf — nothing leaves your phone.",
+  "@onboardingTasteBody": {
+    "description": "Supporting line on the category picker step"
+  },
+  "onboardingContinue": "Keep going",
+  "@onboardingContinue": {
+    "description": "Advances from the category picker step"
+  },
+  "onboardingSkip": "Skip",
+  "@onboardingSkip": {
+    "description": "Leaves the taste intro without choosing anything"
+  },
+  "onboardingDoneTitle": "Your shelf\nis ready.",
+  "@onboardingDoneTitle": {
+    "description": "Headline on the final step of the taste intro"
+  },
+  "onboardingDoneBody": "What you picked comes first. Everything else is still there, one search away.",
+  "@onboardingDoneBody": {
+    "description": "Supporting line on the final step of the taste intro"
+  },
+  "onboardingDoneBodyEmpty": "Nothing picked, so the shelf stays alphabetical. You can browse the lot.",
+  "@onboardingDoneBodyEmpty": {
+    "description": "Supporting line on the final step when nothing was chosen"
+  },
+  "onboardingBrowse": "Start browsing",
+  "@onboardingBrowse": {
+    "description": "Finishes the taste intro and opens the catalogue"
+  },
+  "onboardingStepOf": "Step {current} of {total}",
+  "@onboardingStepOf": {
+    "description": "Progress label on the taste intro",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "categoryWhiskey": "Whiskey",
+  "@categoryWhiskey": {
+    "description": "Spirit category name"
+  },
+  "categoryRum": "Rum",
+  "@categoryRum": {
+    "description": "Spirit category name"
+  },
+  "categoryGin": "Gin",
+  "@categoryGin": {
+    "description": "Spirit category name"
+  },
+  "categoryVodka": "Vodka",
+  "@categoryVodka": {
+    "description": "Spirit category name"
+  },
+  "categoryBrandy": "Brandy",
+  "@categoryBrandy": {
+    "description": "Spirit category name"
+  },
+  "categoryLiqueur": "Liqueur",
+  "@categoryLiqueur": {
+    "description": "Spirit category name"
+  },
+  "categoryWine": "Wine",
+  "@categoryWine": {
+    "description": "Spirit category name, covering fortified and rice wines"
+  },
+  "categoryBeerAndCider": "Beer & cider",
+  "@categoryBeerAndCider": {
+    "description": "Spirit category name"
+  },
+  "categoryAperitif": "Aperitif",
+  "@categoryAperitif": {
+    "description": "Spirit category name"
+  },
+  "categoryOther": "Everything else",
+  "@categoryOther": {
+    "description": "Spirit category for upstream catch-all types"
+  },
   "spiritCount": "{count, plural, =1{1 spirit} other{{count} spirits}}",
   "@spiritCount": {
     "description": "Count of spirits currently listed on the catalogue screen",

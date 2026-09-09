@@ -1,9 +1,11 @@
 import 'package:drinkopedia/app/di/injector.dart';
 import 'package:drinkopedia/app/theme/app_theme.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
+import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/l10n/app_localizations.dart';
 import 'package:drinkopedia/routing/app_router.dart';
+import 'package:drinkopedia/routing/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
@@ -36,11 +38,6 @@ class DrinkopediaApp extends StatefulWidget {
 }
 
 class _DrinkopediaAppState extends State<DrinkopediaApp> {
-  /// Built once: rebuilding a GoRouter resets the navigation stack.
-  late final GoRouter _router = buildAppRouter(
-    initialLocation: widget.initialLocation,
-  );
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -52,19 +49,75 @@ class _DrinkopediaAppState extends State<DrinkopediaApp> {
         designSize: DrinkopediaApp.designSize,
         minTextAdapt: true,
         splitScreenMode: true,
-        builder: (BuildContext context, Widget? child) {
-          return MaterialApp.router(
-            onGenerateTitle: (BuildContext context) =>
-                AppLocalizations.of(context)!.appTitle,
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            routerConfig: _router,
-          );
-        },
+        builder: (BuildContext context, Widget? child) =>
+            _Bootstrap(initialLocation: widget.initialLocation),
       ),
+    );
+  }
+}
+
+/// Decides where the app opens, then builds the router exactly once.
+///
+/// Whether the taste intro has been through is a local database read, so it is
+/// not known on the first frame. The router is therefore built *after* that
+/// read rather than being redirected afterwards — a redirect would paint the
+/// catalogue first and yank it away, which reads as a bug.
+class _Bootstrap extends StatefulWidget {
+  const _Bootstrap({this.initialLocation});
+
+  final String? initialLocation;
+
+  @override
+  State<_Bootstrap> createState() => _BootstrapState();
+}
+
+class _BootstrapState extends State<_Bootstrap> {
+  GoRouter? _router;
+
+  @override
+  void initState() {
+    super.initState();
+    // Deferred: providers must not be read while the tree is still building.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _decideStart());
+  }
+
+  Future<void> _decideStart() async {
+    final OnboardingProvider onboarding = context.read<OnboardingProvider>();
+    await onboarding.load();
+    if (!mounted) return;
+
+    setState(() {
+      // An explicit initialLocation wins: it is how deep links and tests open
+      // a specific screen, and neither should be swallowed by the intro.
+      _router = buildAppRouter(
+        initialLocation:
+            widget.initialLocation ??
+            (onboarding.isComplete ? SpiritsRoute.path : OnboardingRoute.path),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final GoRouter? router = _router;
+    if (router == null) {
+      // Deliberately bare. This is one local read long, and anything with
+      // branding on it would flash.
+      return ColoredBox(
+        color: AppTheme.light().scaffoldBackgroundColor,
+        child: const SizedBox.expand(),
+      );
+    }
+
+    return MaterialApp.router(
+      onGenerateTitle: (BuildContext context) =>
+          AppLocalizations.of(context)!.appTitle,
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      routerConfig: router,
     );
   }
 }
