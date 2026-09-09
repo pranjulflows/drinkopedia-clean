@@ -3,10 +3,9 @@ import 'package:drinkopedia/app/theme/app_theme.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/l10n/app_localizations.dart';
-import 'package:drinkopedia/routing/app_router.dart';
+import 'package:drinkopedia/routing/router_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Application root.
@@ -36,34 +35,32 @@ class DrinkopediaApp extends StatefulWidget {
 }
 
 class _DrinkopediaAppState extends State<DrinkopediaApp> {
-  /// Built once: rebuilding a GoRouter resets the navigation stack.
-  late final GoRouter _router = buildAppRouter(
-    initialLocation: widget.initialLocation,
-  );
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: buildProviders(
         database: widget.database,
         cocktailDbApi: widget.cocktailDbApi,
+        initialLocation: widget.initialLocation,
       ),
       child: ScreenUtilInit(
         designSize: DrinkopediaApp.designSize,
         minTextAdapt: true,
         splitScreenMode: true,
-        builder: (BuildContext context, Widget? child) {
-          return MaterialApp.router(
-            onGenerateTitle: (BuildContext context) =>
-                AppLocalizations.of(context)!.appTitle,
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            routerConfig: _router,
-          );
-        },
+        // The router comes from the injector rather than being built here: a
+        // GoRouter rebuilt during a `build` silently resets the navigation
+        // stack. A cold start lands on the splash route, which resolves the
+        // taste preference before handing over to the catalogue.
+        builder: (BuildContext context, Widget? child) => MaterialApp.router(
+          onGenerateTitle: (BuildContext context) =>
+              AppLocalizations.of(context)!.appTitle,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: context.read<RouterService>().router,
+        ),
       ),
     );
   }

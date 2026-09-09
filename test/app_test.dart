@@ -9,7 +9,12 @@ import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:drinkopedia/app/app.dart';
+import 'package:drinkopedia/app/splash_screen.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
+import 'package:drinkopedia/core/database/daos/preferences_dao.dart';
+import 'package:drinkopedia/features/onboarding/data/repositories/taste_repository_impl.dart';
+import 'package:drinkopedia/features/onboarding/domain/entities/taste_preference.dart';
+import 'package:drinkopedia/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/spirit_remote_data_source.dart';
 import 'package:drinkopedia/features/spirits/data/models/spirit_dto.dart';
@@ -93,6 +98,10 @@ void main() {
   late _FakeCocktailDbApi api;
 
   setUp(() {
+    // The splash holds itself on screen for the best part of a second so it
+    // does not read as a flicker. Every test here would pay that, so it is
+    // dropped to nothing.
+    SplashScreen.minimumDuration = Duration.zero;
     db = AppDatabase.forTesting(NativeDatabase.memory());
     api = _FakeCocktailDbApi(catalogue);
 
@@ -151,12 +160,24 @@ void main() {
     }
   }
 
-  Future<void> pumpApp(WidgetTester tester, {String? initialLocation}) async {
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    String? initialLocation,
+    bool onboarded = true,
+  }) async {
     // The first frame schedules a post-frame callback that kicks off the
     // catalogue load. That chain ends in drift I/O, which is genuinely
     // asynchronous and does not advance under the tester's fake clock — so the
     // mount has to happen inside runAsync for those futures to complete.
     await tester.runAsync(() async {
+      // Default: pretend the taste intro has already been through. Every test
+      // below is about the catalogue, and a fresh in-memory database would
+      // otherwise open on the intro instead.
+      if (onboarded) {
+        await TasteRepositoryImpl(
+          dao: PreferencesDao(db),
+        ).save(const TastePreference(completed: true));
+      }
       await tester.pumpWidget(
         DrinkopediaApp(
           database: db,
@@ -164,11 +185,124 @@ void main() {
           cocktailDbApi: api,
         ),
       );
+      // Startup is two async hops, not one, and both are real I/O that only
+      // advances inside runAsync. First the app reads whether the taste intro
+      // has been through and only then builds the router; the catalogue screen
+      // it mounts *then* schedules its own load.
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tester.pump();
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 400));
     });
     await settle(tester);
   }
+
+  testWidgets('a cold start shows the splash before anything else', (
+    WidgetTester tester,
+  ) async {
+    // Long enough that the splash is unambiguously still up when checked.
+    SplashScreen.minimumDuration = const Duration(seconds: 5);
+    addTearDown(() => SplashScreen.minimumDuration = Duration.zero);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(DrinkopediaApp(database: db, cocktailDbApi: api));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+    });
+
+    expect(find.byType(SplashScreen), findsOneWidget);
+    expect(find.byType(SpiritsScreen), findsNothing);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('a deep link is deferred through the splash, not lost', (
+    WidgetTester tester,
+  ) async {
+    // Opening straight into a route means nothing has read the preference yet,
+    // so the router cannot know whether to gate it. The link is carried
+    // through the splash and resumed rather than dropped on the catalogue.
+    await pumpApp(tester, initialLocation: '/spirits/1');
+
+    expect(find.byType(SpiritDetailScreen), findsOneWidget);
+    expect(find.byType(SplashScreen), findsNothing);
+  });
+
+  testWidgets('a first launch opens the taste intro, not the catalogue', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.byType(SpiritsScreen), findsNothing);
+  });
+
+  testWidgets('a later launch goes straight to the catalogue', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('a deep link on a first launch still goes through the intro', (
+    WidgetTester tester,
+  ) async {
+    // The router guards every route, so an unanswered intro wins over the
+    // requested location rather than being skipped past.
+    await pumpApp(tester, initialLocation: '/spirits/1', onboarded: false);
+
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.byType(SpiritDetailScreen), findsNothing);
+  });
+
+  testWidgets('skipping the intro records it, so it does not come back', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+
+    await tester.tap(findLabel('Skip'));
+    await pumpUntil(tester, find.byType(SpiritsScreen));
+    await settle(tester);
+
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+
+    // Skipping is an answer, not an absence of one: relaunching against the
+    // same database must not ask again.
+    await pumpApp(tester, onboarded: false);
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('the intro walks its three steps and lands on the catalogue', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+
+    // Step 1 → 2.
+    await tester.tap(findLabel('Start'));
+    await settle(tester);
+    expect(findLabel('What are you into'), findsOneWidget);
+
+    // A raw upstream type never appears as a choice; the normalised name does.
+    expect(findLabel('Whiskey'), findsOneWidget);
+    expect(findLabel('Rice wine'), findsNothing);
+
+    await tester.tap(findLabel('Whiskey'));
+    await settle(tester);
+
+    // Step 2 → 3, then out.
+    await tester.tap(findLabel('Keep going'));
+    await settle(tester);
+    await tester.tap(findLabel('Start browsing'));
+    await pumpUntil(tester, find.byType(SpiritsScreen));
+    await settle(tester);
+
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+  });
 
   testWidgets('catalogue loads and renders cards', (WidgetTester tester) async {
     await pumpApp(tester);

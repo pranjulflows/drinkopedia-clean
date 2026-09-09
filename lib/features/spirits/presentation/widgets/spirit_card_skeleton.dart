@@ -1,3 +1,4 @@
+import 'package:drinkopedia/app/theme/app_colors.dart';
 import 'package:drinkopedia/app/theme/app_edges.dart';
 import 'package:drinkopedia/app/theme/app_motion.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
@@ -40,15 +41,22 @@ class _SpiritCardSkeletonState extends State<SpiritCardSkeleton>
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return HardEdgePanel(
       child: AnimatedBuilder(
         animation: _controller,
         builder: (BuildContext context, Widget? child) {
+          // Two skeleton tones rather than a scheme container role: the card
+          // this sits in is already the lightest surface, so pulsing towards it
+          // would fade the blocks out entirely.
           final Color base = Color.lerp(
-            scheme.surfaceContainerHighest,
-            scheme.surfaceContainer,
+            isDark ? AppColors.skeletonDark : AppColors.skeleton,
+            isDark
+                ? AppColors.skeletonHighlightDark
+                : AppColors.skeletonHighlight,
             _controller.value,
           )!;
           return Column(
