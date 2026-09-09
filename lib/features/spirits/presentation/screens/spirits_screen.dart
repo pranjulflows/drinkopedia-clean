@@ -58,6 +58,10 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
           color: theme.colorScheme.onSurface,
           backgroundColor: theme.colorScheme.surfaceContainer,
           child: CustomScrollView(
+            // Dragging the results puts the keyboard away. On a phone it covers
+            // half the catalogue, so scrolling to look at what you searched for
+            // is the most natural way to ask for it to go.
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: <Widget>[
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
@@ -86,6 +90,7 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                       HardEdgeSearchField(
                         hintText: l10n.searchSpirits,
                         onChanged: provider.search,
+                        clearTooltip: l10n.clearSearch,
                       ),
                       const SizedBox(height: 14),
                       _CountLabel(provider: provider),

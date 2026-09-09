@@ -17,6 +17,7 @@
   "noMatches": "Aucun spiritueux ne correspond à votre recherche",
   "retry": "Réessayer",
   "refresh": "Actualiser",
+  "clearSearch": "Effacer la recherche",
   "spiritCount": "{count, plural, =1{1 spiritueux} other{{count} spiritueux}}",
   "abvValue": "{value} % vol."
 }

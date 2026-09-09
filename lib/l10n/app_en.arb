@@ -68,6 +68,10 @@
   "@refresh": {
     "description": "Tooltip of the refresh action"
   },
+  "clearSearch": "Clear search",
+  "@clearSearch": {
+    "description": "Tooltip on the button that empties the catalogue search field"
+  },
   "spiritCount": "{count, plural, =1{1 spirit} other{{count} spirits}}",
   "@spiritCount": {
     "description": "Count of spirits currently listed on the catalogue screen",

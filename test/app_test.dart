@@ -242,6 +242,54 @@ void main() {
     expect(findLabel('Mezcal'), findsWidgets);
   });
 
+  testWidgets('the search field can be cleared and gives up focus', (
+    WidgetTester tester,
+  ) async {
+    // There is no form to submit here, so without a way out the keyboard
+    // covers half the catalogue with no route back.
+    await pumpApp(tester);
+
+    await tester.enterText(find.byType(TextField), 'mez');
+    await settle(tester);
+    expect(find.byType(SpiritCard), findsOneWidget);
+
+    final Finder clear = find.byIcon(Icons.close);
+    expect(clear, findsOneWidget, reason: 'a clear button appears once typed');
+
+    await tester.tap(clear);
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsNWidgets(2));
+    expect(clear, findsNothing, reason: 'and goes away once empty');
+    expect(
+      tester.testTextInput.isVisible,
+      isFalse,
+      reason: 'clearing must also dismiss the keyboard',
+    );
+  });
+
+  testWidgets('scrolling the catalogue dismisses the keyboard', (
+    WidgetTester tester,
+  ) async {
+    // The two-spirit fixture does not fill a phone, and a scroll view with
+    // nothing to scroll never reports a drag — so the viewport is squeezed
+    // until the grid genuinely overflows it.
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await pumpApp(tester);
+
+    await tester.tap(find.byType(TextField));
+    await settle(tester);
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -150));
+    await settle(tester);
+
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
+
   testWidgets('a warm cache does not refetch on relaunch', (
     WidgetTester tester,
   ) async {
