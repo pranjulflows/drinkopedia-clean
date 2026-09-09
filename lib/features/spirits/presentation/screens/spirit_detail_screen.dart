@@ -94,12 +94,9 @@ class _SpiritContent extends StatelessWidget {
     return CustomScrollView(
       slivers: <Widget>[
         SliverAppBar(
-          expandedHeight: 300,
+          expandedHeight: _expandedHeight,
           pinned: true,
           automaticallyImplyLeading: false,
-          // The name is set below the artwork at display size rather than in
-          // the bar, so the bar carries only the back action and collapses to a
-          // plain strip the story scrolls under.
           leading: Padding(
             padding: const EdgeInsets.only(left: 16, top: 8),
             child: HardEdgeIconButton(
@@ -110,16 +107,7 @@ class _SpiritContent extends StatelessWidget {
             ),
           ),
           leadingWidth: 78,
-          flexibleSpace: FlexibleSpaceBar(
-            background: Hero(
-              tag: SpiritCard.heroTag(spirit.id),
-              child: SpiritArtwork(
-                spirit: spirit,
-                padding: const EdgeInsets.fromLTRB(40, 64, 40, 20),
-                fallbackIconSize: 64,
-              ),
-            ),
-          ),
+          flexibleSpace: _CollapsingHeader(spirit: spirit),
         ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 56),
@@ -172,6 +160,126 @@ class _SpiritContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// How tall the artwork header is before any scrolling.
+const double _expandedHeight = 300;
+
+/// The artwork, and the name sliding into the bar as it collapses.
+///
+/// The name is set below the header at display size, so once it scrolls away
+/// the bar would otherwise be an empty strip with a back button in it. This
+/// brings the name up into that strip instead.
+///
+/// Driven by the header's own height rather than by a scroll controller: the
+/// flexible space is rebuilt with fresh constraints on every frame of the
+/// collapse, so the fade tracks the finger continuously instead of snapping at
+/// a threshold.
+class _CollapsingHeader extends StatelessWidget {
+  const _CollapsingHeader({required this.spirit});
+
+  final Spirit spirit;
+
+  @override
+  Widget build(BuildContext context) {
+    final double topInset = MediaQuery.paddingOf(context).top;
+    final double collapsedHeight = topInset + kToolbarHeight;
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double range = _expandedHeight - collapsedHeight;
+        // 1 fully open, 0 fully collapsed.
+        final double openness = range <= 0
+            ? 0
+            : ((constraints.maxHeight - collapsedHeight) / range).clamp(
+                0.0,
+                1.0,
+              );
+
+        // Held back until the header is nearly shut, so the small name arrives
+        // as the display-size one goes under the bar rather than the two
+        // sitting there together.
+        const double startAt = 0.3;
+        final double t = ((startAt - openness) / startAt).clamp(0.0, 1.0);
+
+        return Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Hero(
+              tag: SpiritCard.heroTag(spirit.id),
+              child: SpiritArtwork(
+                spirit: spirit,
+                padding: const EdgeInsets.fromLTRB(40, 64, 40, 20),
+                fallbackIconSize: 64,
+              ),
+            ),
+            if (t > 0)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: collapsedHeight,
+                child: Opacity(
+                  opacity: t,
+                  child: _CollapsedTitleBar(
+                    name: spirit.name,
+                    topInset: topInset,
+                    // Rises the last few pixels into place as it fades in.
+                    offset: (1 - t) * 10,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CollapsedTitleBar extends StatelessWidget {
+  const _CollapsedTitleBar({
+    required this.name,
+    required this.topInset,
+    required this.offset,
+  });
+
+  final String name;
+  final double topInset;
+  final double offset;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        // Opaque, so the artwork it slides over never shows through the name.
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.outline,
+            width: AppEdges.border,
+          ),
+        ),
+      ),
+      child: Padding(
+        // Clears the back button, which sits above this in the app bar.
+        padding: EdgeInsets.only(top: topInset, left: 78, right: 20),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Transform.translate(
+            offset: Offset(0, offset),
+            child: Text(
+              name.toUpperCase(),
+              style: theme.textTheme.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

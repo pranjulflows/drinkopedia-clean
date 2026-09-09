@@ -6,6 +6,7 @@
 // together.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:drinkopedia/app/app.dart';
@@ -83,7 +84,18 @@ void main() {
           'Vodka',
           type: 'Vodka',
           abv: '40',
-          description: 'Vodka is a distilled beverage from Eastern Europe.',
+          // Long enough that the detail screen genuinely scrolls: a one-line
+          // story leaves the 300pt header nothing to collapse into, and any
+          // test that drags it would pass without moving anything.
+          description:
+              'Vodka is a distilled beverage from Eastern Europe. It is '
+              'composed primarily of water and ethanol, sometimes with traces '
+              'of impurities and flavourings. Traditionally it is made by '
+              'distilling liquid from fermented cereal grains, and some '
+              'modern brands use fruits, honey, or maple sap as the base. '
+              'Since the 1890s, the standard Polish, Russian, Belarusian, '
+              'Ukrainian, Estonian, Latvian, Lithuanian and Czech vodkas are '
+              'forty percent alcohol by volume.',
         ),
         // No description upstream — exercises the graceful-degradation path.
         'Mezcal': _ingredient('2', 'Mezcal', type: 'Spirit'),
@@ -95,6 +107,17 @@ void main() {
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     api = _FakeCocktailDbApi(catalogue);
+
+    // cached_network_image asks path_provider for a cache directory the moment
+    // it starts loading. There is no plugin implementation under the test
+    // binding, so without this the first test that pumps long enough for an
+    // image to begin loading dies on a MissingPluginException.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall call) async =>
+              Directory.systemTemp.createTempSync('drinkopedia_test').path,
+        );
 
     // Shrink the shipped seed list to the two fixtures above.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -119,7 +142,11 @@ void main() {
 
   tearDown(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMessageHandler('flutter/assets', null);
+      ..setMockMessageHandler('flutter/assets', null)
+      ..setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        null,
+      );
     await db.close();
   });
 
@@ -193,6 +220,47 @@ void main() {
     expect(
       find.textContaining('distilled beverage from Eastern Europe'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('the name rises into the app bar as the header collapses', (
+    WidgetTester tester,
+  ) async {
+    // Before this, scrolling the story left the bar an empty strip with a
+    // back button in it and the name gone off the top.
+    //
+    // The viewport is squeezed so the 300pt header plus a short story actually
+    // overflows it; otherwise there is nothing to scroll and the drag is a
+    // no-op that would pass for the wrong reason.
+    tester.view.physicalSize = const Size(1170, 1500);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await pumpApp(tester);
+    await tester.tap(findLabel('Vodka').first);
+    await pumpUntil(tester, find.byType(SpiritDetailScreen));
+    await settle(tester);
+
+    // Counted rather than fixed: this fixture's type is also "Vodka", so the
+    // chip matches the same finder as the name does.
+    final int whileExpanded = findLabel('Vodka').evaluate().length;
+
+    // Scoped to the detail screen: the catalogue is still mounted behind it
+    // and has a CustomScrollView of its own.
+    await tester.drag(
+      find.descendant(
+        of: find.byType(SpiritDetailScreen),
+        matching: find.byType(CustomScrollView),
+      ),
+      const Offset(0, -280),
+    );
+    await settle(tester);
+    await settle(tester);
+
+    expect(
+      findLabel('Vodka').evaluate().length,
+      whileExpanded + 1,
+      reason: 'collapsing adds exactly one more Vodka: the one in the bar',
     );
   });
 
