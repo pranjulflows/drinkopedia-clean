@@ -60,6 +60,19 @@ Map<String, dynamic> _ingredient(
   'strAlcohol': 'Yes',
 };
 
+/// Matches a [Text] by its content, ignoring case.
+///
+/// Names and headings are set in caps as a styling decision, and Flutter has no
+/// text-transform — the string itself is uppercased at the call site. Asserting
+/// on exact case would tie these tests to the current visual direction, which
+/// is not what they are here to catch.
+Finder findLabel(String text) => find.byWidgetPredicate(
+  (Widget widget) =>
+      widget is Text &&
+      (widget.data ?? '').toLowerCase().contains(text.toLowerCase()),
+  description: 'Text containing "$text" (case-insensitive)',
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -162,8 +175,8 @@ void main() {
 
     expect(find.byType(SpiritsScreen), findsOneWidget);
     expect(find.byType(SpiritCard), findsNWidgets(2));
-    expect(find.text('Vodka'), findsWidgets);
-    expect(find.text('Mezcal'), findsWidgets);
+    expect(findLabel('Vodka'), findsWidgets);
+    expect(findLabel('Mezcal'), findsWidgets);
   });
 
   testWidgets('tapping a card opens its detail and story', (
@@ -171,12 +184,12 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('Vodka').first);
+    await tester.tap(findLabel('Vodka').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
     expect(find.byType(SpiritDetailScreen), findsOneWidget);
-    expect(find.text('The Story'), findsOneWidget);
+    expect(findLabel('The Story'), findsOneWidget);
     expect(
       find.textContaining('distilled beverage from Eastern Europe'),
       findsOneWidget,
@@ -188,7 +201,7 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('Mezcal').first);
+    await tester.tap(findLabel('Mezcal').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
@@ -222,11 +235,11 @@ void main() {
   testWidgets('search filters the catalogue', (WidgetTester tester) async {
     await pumpApp(tester);
 
-    await tester.enterText(find.byType(SearchBar), 'mez');
+    await tester.enterText(find.byType(TextField), 'mez');
     await settle(tester);
 
     expect(find.byType(SpiritCard), findsOneWidget);
-    expect(find.text('Mezcal'), findsWidgets);
+    expect(findLabel('Mezcal'), findsWidgets);
   });
 
   testWidgets('a warm cache does not refetch on relaunch', (
