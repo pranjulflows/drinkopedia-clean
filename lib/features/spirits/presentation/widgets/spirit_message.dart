@@ -1,5 +1,6 @@
 import 'package:drinkopedia/app/theme/app_edges.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_button.dart';
+import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
 import 'package:flutter/material.dart';
 
 /// The empty, error and no-matches states.
@@ -33,21 +34,15 @@ class SpiritMessage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: theme.colorScheme.outline,
-                width: AppEdges.border,
-              ),
-              boxShadow: AppEdges.hard(
-                theme.colorScheme.outline,
-                AppEdges.shadowCompact,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Icon(icon, size: 32, color: theme.colorScheme.onSurface),
-            ),
+          // The same panel primitive as every other bordered block, rather than
+          // a hand-rolled DecoratedBox. The hand-rolled one had a border and an
+          // offset shadow but no fill, so the shadow — a solid ink rectangle,
+          // not a blur — showed straight through the transparent box and left
+          // an ink icon sitting on ink. It rendered as a black square.
+          HardEdgePanel(
+            shadowOffset: AppEdges.shadowCompact,
+            padding: const EdgeInsets.all(14),
+            child: Icon(icon, size: 32, color: theme.colorScheme.onSurface),
           ),
           const SizedBox(height: 22),
           Text(
