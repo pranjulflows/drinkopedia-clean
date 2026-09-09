@@ -1,4 +1,5 @@
 import 'package:drinkopedia/app/theme/app_edges.dart';
+import 'package:drinkopedia/app/theme/app_motion.dart';
 import 'package:flutter/material.dart';
 
 /// A bordered block with a hard offset shadow — the direction's base surface.
@@ -10,7 +11,11 @@ import 'package:flutter/material.dart';
 /// The shadow is painted *outside* the panel's own box, so leave room for
 /// [shadowOffset] in whatever lays this out — a grid needs its spacing to
 /// exceed the offset or neighbours will sit on top of it.
-class HardEdgePanel extends StatelessWidget {
+///
+/// When [onTap] is set, pressing slides the panel down onto its own shadow and
+/// releases back. A ripple would belong to a softer language than this one; the
+/// shadow collapsing under the press is the feedback the shape already implies.
+class HardEdgePanel extends StatefulWidget {
   const HardEdgePanel({
     required this.child,
     this.color,
@@ -38,35 +43,60 @@ class HardEdgePanel extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   @override
+  State<HardEdgePanel> createState() => _HardEdgePanelState();
+}
+
+class _HardEdgePanelState extends State<HardEdgePanel> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final Color fill = color ?? scheme.surfaceContainer;
+    final Color fill = widget.color ?? scheme.surfaceContainer;
+    final Color shadow = widget.shadowColor ?? scheme.outline;
+    final bool interactive = widget.onTap != null;
+
+    // The panel travels exactly as far as its shadow, so at full press the two
+    // are flush and the block looks pushed flat against the page.
+    final Offset travel = _pressed && interactive
+        ? widget.shadowOffset
+        : Offset.zero;
 
     final Widget content = Padding(
-      padding: padding ?? EdgeInsets.zero,
-      child: child,
+      padding: widget.padding ?? EdgeInsets.zero,
+      child: widget.child,
     );
 
-    return DecoratedBox(
+    final Widget panel = AnimatedContainer(
+      duration: AppMotion.resolve(context, AppMotion.instant),
+      curve: AppMotion.enter,
+      transform: Matrix4.translationValues(travel.dx, travel.dy, 0),
       decoration: BoxDecoration(
         color: fill,
-        border: Border.all(color: scheme.outline, width: borderWidth),
-        boxShadow: AppEdges.hard(shadowColor ?? scheme.outline, shadowOffset),
+        border: Border.all(color: scheme.outline, width: widget.borderWidth),
+        boxShadow: _pressed && interactive
+            ? const <BoxShadow>[]
+            : AppEdges.hard(shadow, widget.shadowOffset),
       ),
-      child: onTap == null
-          ? content
-          : Material(
-              type: MaterialType.transparency,
-              child: InkWell(
-                onTap: onTap,
-                // A flat press tint, not a ripple: the edges are hard, so the
-                // feedback is too.
-                highlightColor: scheme.onSurface.withValues(alpha: 0.10),
-                hoverColor: scheme.onSurface.withValues(alpha: 0.04),
-                splashFactory: NoSplash.splashFactory,
-                child: content,
-              ),
-            ),
+      child: content,
+    );
+
+    if (!interactive) return panel;
+
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: (TapDownDetails _) => _setPressed(true),
+        onTapUp: (TapUpDetails _) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        behavior: HitTestBehavior.opaque,
+        child: panel,
+      ),
     );
   }
 }
