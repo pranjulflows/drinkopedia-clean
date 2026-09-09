@@ -140,6 +140,26 @@ of literal durations.
 **Always honour `MediaQuery.disableAnimations`.** Animation is decoration; it must never be
 required to understand or operate a screen.
 
+## Branching
+
+`main` is release-only. **`development` is the default PR target** — every feature, fix and
+doc PR goes there, never straight to `main`. Neither branch is committed to directly.
+
+**Every new piece of work gets its own short-lived branch off an up-to-date
+`development`**, named `<type>/<short-kebab-summary>` (`feat/`, `fix/`, `refactor/`,
+`docs/`, `test/`, `chore/`, `ci/`).
+
+```bash
+git checkout development && git pull
+git checkout -b feat/spirit-filter
+git push -u origin feat/spirit-filter
+gh pr create --base development     # gh infers `main` — always pass --base
+```
+
+Releases are a PR from `development` into `main`. A hotfix branches off `main`, and must be
+merged back down into `development` straight after. Full detail, including the CI
+implications, in `docs/branching-strategy.md`.
+
 ## Conventions
 
 - `flutter analyze` clean is the bar for "done". Not "only infos left".
