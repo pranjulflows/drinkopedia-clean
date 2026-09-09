@@ -19,6 +19,14 @@ class OnboardingProvider extends ChangeNotifier {
   bool get isComplete => _preference.completed;
   Set<SpiritCategory> get categories => _preference.categories;
 
+  /// Whether the stored preference has actually been read yet.
+  ///
+  /// Distinct from [isComplete]: before [load] runs, "not answered" and "not
+  /// yet known" look identical, and a router guard that conflates them sends a
+  /// returning user through the intro again.
+  bool _isResolved = false;
+  bool get isResolved => _isResolved;
+
   int _step = 0;
   int get step => _step;
   bool get isLastStep => _step == stepCount - 1;
@@ -30,6 +38,7 @@ class OnboardingProvider extends ChangeNotifier {
 
   Future<void> load() async {
     _preference = await repository.load();
+    _isResolved = true;
     _selection
       ..clear()
       ..addAll(_preference.categories);

@@ -9,6 +9,7 @@ import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:drinkopedia/app/app.dart';
+import 'package:drinkopedia/app/splash_screen.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
 import 'package:drinkopedia/core/database/daos/preferences_dao.dart';
 import 'package:drinkopedia/features/onboarding/data/repositories/taste_repository_impl.dart';
@@ -97,6 +98,10 @@ void main() {
   late _FakeCocktailDbApi api;
 
   setUp(() {
+    // The splash holds itself on screen for the best part of a second so it
+    // does not read as a flicker. Every test here would pay that, so it is
+    // dropped to nothing.
+    SplashScreen.minimumDuration = Duration.zero;
     db = AppDatabase.forTesting(NativeDatabase.memory());
     api = _FakeCocktailDbApi(catalogue);
 
@@ -192,6 +197,37 @@ void main() {
     });
     await settle(tester);
   }
+
+  testWidgets('a cold start shows the splash before anything else', (
+    WidgetTester tester,
+  ) async {
+    // Long enough that the splash is unambiguously still up when checked.
+    SplashScreen.minimumDuration = const Duration(seconds: 5);
+    addTearDown(() => SplashScreen.minimumDuration = Duration.zero);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(DrinkopediaApp(database: db, cocktailDbApi: api));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+    });
+
+    expect(find.byType(SplashScreen), findsOneWidget);
+    expect(find.byType(SpiritsScreen), findsNothing);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('a deep link is deferred through the splash, not lost', (
+    WidgetTester tester,
+  ) async {
+    // Opening straight into a route means nothing has read the preference yet,
+    // so the router cannot know whether to gate it. The link is carried
+    // through the splash and resumed rather than dropped on the catalogue.
+    await pumpApp(tester, initialLocation: '/spirits/1');
+
+    expect(find.byType(SpiritDetailScreen), findsOneWidget);
+    expect(find.byType(SplashScreen), findsNothing);
+  });
 
   testWidgets('a first launch opens the taste intro, not the catalogue', (
     WidgetTester tester,

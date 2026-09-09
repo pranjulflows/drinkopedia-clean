@@ -1,7 +1,6 @@
 import 'package:drinkopedia/app/di/injector.dart';
 import 'package:drinkopedia/app/theme/app_theme.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
-import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/l10n/app_localizations.dart';
 import 'package:drinkopedia/routing/router_service.dart';
@@ -48,65 +47,21 @@ class _DrinkopediaAppState extends State<DrinkopediaApp> {
         designSize: DrinkopediaApp.designSize,
         minTextAdapt: true,
         splitScreenMode: true,
-        builder: (BuildContext context, Widget? child) => const _Bootstrap(),
+        // The router comes from the injector rather than being built here: a
+        // GoRouter rebuilt during a `build` silently resets the navigation
+        // stack. A cold start lands on the splash route, which resolves the
+        // taste preference before handing over to the catalogue.
+        builder: (BuildContext context, Widget? child) => MaterialApp.router(
+          onGenerateTitle: (BuildContext context) =>
+              AppLocalizations.of(context)!.appTitle,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: context.read<RouterService>().router,
+        ),
       ),
-    );
-  }
-}
-
-/// Holds the first frame until the taste preference has been read.
-///
-/// Whether the intro has been answered is a local database read, so it is not
-/// known when the app first builds — and the router's guard depends on it.
-/// Waiting here means the router is only ever created with an accurate answer;
-/// letting it build first and redirecting afterwards would paint the catalogue
-/// and then yank it away, which reads as a bug.
-///
-/// The router itself is not built here. It comes from `RouterService` in the
-/// injector, so it is composed once in the object graph rather than inside a
-/// widget that could rebuild it and reset the navigation stack.
-class _Bootstrap extends StatefulWidget {
-  const _Bootstrap();
-
-  @override
-  State<_Bootstrap> createState() => _BootstrapState();
-}
-
-class _BootstrapState extends State<_Bootstrap> {
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Deferred: providers must not be read while the tree is still building.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveStart());
-  }
-
-  Future<void> _resolveStart() async {
-    await context.read<OnboardingProvider>().load();
-    if (mounted) setState(() => _ready = true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_ready) {
-      // Deliberately bare. This is one local read long, and anything with
-      // branding on it would flash.
-      return ColoredBox(
-        color: AppTheme.light().scaffoldBackgroundColor,
-        child: const SizedBox.expand(),
-      );
-    }
-
-    return MaterialApp.router(
-      onGenerateTitle: (BuildContext context) =>
-          AppLocalizations.of(context)!.appTitle,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: context.read<RouterService>().router,
     );
   }
 }

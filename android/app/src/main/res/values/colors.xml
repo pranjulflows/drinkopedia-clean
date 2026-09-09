@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppColors.paper. Matches the Flutter splash so the handover from the
+         OS launch screen to the app is invisible. -->
+    <color name="launch_background">#F5F1E8</color>
+</resources>

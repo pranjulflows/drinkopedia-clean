@@ -72,6 +72,10 @@
   "@clearSearch": {
     "description": "Tooltip on the button that empties the catalogue search field"
   },
+  "appTagline": "The stories behind what you're drinking.",
+  "@appTagline": {
+    "description": "One-line description of the app, shown on the splash screen"
+  },
   "onboardingWelcomeTitle": "44 spirits.\nEvery one\nhas a story.",
   "@onboardingWelcomeTitle": {
     "description": "Headline on the first step of the taste intro"

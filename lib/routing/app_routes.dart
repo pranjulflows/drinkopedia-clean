@@ -1,3 +1,4 @@
+import 'package:drinkopedia/app/splash_screen.dart';
 import 'package:drinkopedia/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirit_detail_screen.dart';
@@ -15,6 +16,29 @@ part 'app_routes.g.dart';
 /// Path parameters carry everything a route genuinely needs; `$extra` only ever
 /// carries an optimisation. `$extra` does not survive a deep link, an app
 /// restart, or a process death, so every screen must still work without it.
+/// `/splash` — where a cold start lands.
+///
+/// A route rather than a widget swapped in above the app, so it gets the theme
+/// and localisations like every other screen, and so the transition out of it
+/// is an ordinary navigation.
+@TypedGoRoute<SplashRoute>(path: SplashRoute.path)
+class SplashRoute extends GoRouteData with $SplashRoute {
+  const SplashRoute({this.next});
+
+  static const String path = '/splash';
+
+  /// Where to continue once the preference has been read.
+  ///
+  /// A deep link arriving on a cold start is bounced here first, because the
+  /// router cannot decide whether to gate it until the preference is known.
+  /// Carrying the destination means the link is deferred rather than lost.
+  final String? next;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      SplashScreen(next: next);
+}
+
 /// `/onboarding` — the taste intro.
 ///
 /// A real route rather than a screen swapped in above the catalogue, so it can
