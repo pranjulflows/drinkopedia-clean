@@ -15,6 +15,7 @@ import 'package:drinkopedia/features/spirits/domain/usecases/get_spirit_detail.d
 import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits.dart';
 import 'package:drinkopedia/features/spirits/presentation/providers/spirits_provider.dart';
 import 'package:drinkopedia/routing/navigation_service.dart';
+import 'package:drinkopedia/routing/router_service.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
@@ -26,10 +27,12 @@ import 'package:provider/single_child_widget.dart';
 /// and any of them can be swapped in a test without touching a screen.
 ///
 /// [database] and [cocktailDbApi] are injectable so tests can supply an
-/// in-memory database and a stubbed API.
+/// in-memory database and a stubbed API. [initialLocation] is threaded through
+/// to the router for deep links and for tests that open a specific screen.
 List<SingleChildWidget> buildProviders({
   AppDatabase? database,
   CocktailDbApi? cocktailDbApi,
+  String? initialLocation,
 }) {
   final AppDatabase db = database ?? AppDatabase();
 
@@ -89,6 +92,17 @@ List<SingleChildWidget> buildProviders({
     ChangeNotifierProvider<OnboardingProvider>(
       create: (BuildContext context) =>
           OnboardingProvider(repository: context.read<TasteRepository>()),
+    ),
+
+    // Composed here rather than inside a widget: a GoRouter rebuilt during a
+    // `build` silently resets the navigation stack. Provider creates it lazily
+    // and holds it, so it is built exactly once — and by the time anything
+    // reads it, the taste preference its guard depends on has resolved.
+    Provider<RouterService>(
+      create: (BuildContext context) => GoRouterService(
+        onboarding: context.read<OnboardingProvider>(),
+        initialLocation: initialLocation,
+      ),
     ),
   ];
 }

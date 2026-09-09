@@ -211,6 +211,17 @@ void main() {
     expect(find.byType(OnboardingScreen), findsNothing);
   });
 
+  testWidgets('a deep link on a first launch still goes through the intro', (
+    WidgetTester tester,
+  ) async {
+    // The router guards every route, so an unanswered intro wins over the
+    // requested location rather than being skipped past.
+    await pumpApp(tester, initialLocation: '/spirits/1', onboarded: false);
+
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.byType(SpiritDetailScreen), findsNothing);
+  });
+
   testWidgets('skipping the intro records it, so it does not come back', (
     WidgetTester tester,
   ) async {

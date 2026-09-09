@@ -4,11 +4,9 @@ import 'package:drinkopedia/core/database/app_database.dart';
 import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/l10n/app_localizations.dart';
-import 'package:drinkopedia/routing/app_router.dart';
-import 'package:drinkopedia/routing/app_routes.dart';
+import 'package:drinkopedia/routing/router_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Application root.
@@ -44,63 +42,54 @@ class _DrinkopediaAppState extends State<DrinkopediaApp> {
       providers: buildProviders(
         database: widget.database,
         cocktailDbApi: widget.cocktailDbApi,
+        initialLocation: widget.initialLocation,
       ),
       child: ScreenUtilInit(
         designSize: DrinkopediaApp.designSize,
         minTextAdapt: true,
         splitScreenMode: true,
-        builder: (BuildContext context, Widget? child) =>
-            _Bootstrap(initialLocation: widget.initialLocation),
+        builder: (BuildContext context, Widget? child) => const _Bootstrap(),
       ),
     );
   }
 }
 
-/// Decides where the app opens, then builds the router exactly once.
+/// Holds the first frame until the taste preference has been read.
 ///
-/// Whether the taste intro has been through is a local database read, so it is
-/// not known on the first frame. The router is therefore built *after* that
-/// read rather than being redirected afterwards — a redirect would paint the
-/// catalogue first and yank it away, which reads as a bug.
+/// Whether the intro has been answered is a local database read, so it is not
+/// known when the app first builds — and the router's guard depends on it.
+/// Waiting here means the router is only ever created with an accurate answer;
+/// letting it build first and redirecting afterwards would paint the catalogue
+/// and then yank it away, which reads as a bug.
+///
+/// The router itself is not built here. It comes from `RouterService` in the
+/// injector, so it is composed once in the object graph rather than inside a
+/// widget that could rebuild it and reset the navigation stack.
 class _Bootstrap extends StatefulWidget {
-  const _Bootstrap({this.initialLocation});
-
-  final String? initialLocation;
+  const _Bootstrap();
 
   @override
   State<_Bootstrap> createState() => _BootstrapState();
 }
 
 class _BootstrapState extends State<_Bootstrap> {
-  GoRouter? _router;
+  bool _ready = false;
 
   @override
   void initState() {
     super.initState();
     // Deferred: providers must not be read while the tree is still building.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _decideStart());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveStart());
   }
 
-  Future<void> _decideStart() async {
-    final OnboardingProvider onboarding = context.read<OnboardingProvider>();
-    await onboarding.load();
-    if (!mounted) return;
-
-    setState(() {
-      // An explicit initialLocation wins: it is how deep links and tests open
-      // a specific screen, and neither should be swallowed by the intro.
-      _router = buildAppRouter(
-        initialLocation:
-            widget.initialLocation ??
-            (onboarding.isComplete ? SpiritsRoute.path : OnboardingRoute.path),
-      );
-    });
+  Future<void> _resolveStart() async {
+    await context.read<OnboardingProvider>().load();
+    if (mounted) setState(() => _ready = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final GoRouter? router = _router;
-    if (router == null) {
+    if (!_ready) {
       // Deliberately bare. This is one local read long, and anything with
       // branding on it would flash.
       return ColoredBox(
@@ -117,7 +106,7 @@ class _BootstrapState extends State<_Bootstrap> {
       darkTheme: AppTheme.dark(),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
+      routerConfig: context.read<RouterService>().router,
     );
   }
 }
