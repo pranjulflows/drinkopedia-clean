@@ -67,18 +67,27 @@ class HardEdgeIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color ground = background ?? AppColors.acid;
+    // Derived from the actual ground rather than from the theme. The accent
+    // grounds are identical in light and dark, so a glyph keyed to the theme
+    // disappears on them — and a caller may pass a surface colour that flips
+    // with the theme, which is how the back button turned into an empty box in
+    // dark mode.
+    final Color glyph =
+        ThemeData.estimateBrightnessForColor(ground) == Brightness.dark
+        ? AppColors.paper
+        : AppColors.ink;
+
     return Tooltip(
       message: tooltip,
       child: HardEdgePanel(
-        color: background ?? AppColors.acid,
+        color: ground,
         shadowOffset: AppEdges.shadowCompact,
         onTap: onPressed,
         child: SizedBox(
           width: 46,
           height: 46,
-          // Ink, not onSurface: the acid ground is the same in both themes, so
-          // the glyph has to stay dark even in dark mode.
-          child: Icon(icon, size: 20, color: AppColors.ink),
+          child: Icon(icon, size: 20, color: glyph),
         ),
       ),
     );
