@@ -1,3 +1,4 @@
+import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
 import 'package:flutter/material.dart';
 
 /// Colour tokens for the "neo-brutalist pop" direction.
@@ -59,6 +60,15 @@ class AppColors {
 
   /// Grounds for image wells.
   static const List<Color> wells = <Color>[acid, hotPink, electricBlue];
+
+  /// The accent a category is drawn in.
+  ///
+  /// Keyed off the category itself rather than its position in a list, so a
+  /// category keeps its colour wherever it appears — the picker, the summary,
+  /// and anywhere it turns up later. Position-based rotation would recolour
+  /// everything the moment a category is added or reordered.
+  static Color accentForCategory(SpiritCategory category) =>
+      wells[category.index % wells.length];
 
   /// The well a spirit's artwork sits on.
   ///
