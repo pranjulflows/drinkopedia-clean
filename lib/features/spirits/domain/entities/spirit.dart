@@ -1,3 +1,4 @@
+import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
 import 'package:equatable/equatable.dart';
 
 /// A category of alcohol — vodka, bourbon, mezcal — and the story behind it.
@@ -40,6 +41,13 @@ class Spirit extends Equatable {
 
   /// Enough detail to be worth opening a detail screen for.
   bool get isComplete => hasStory && hasType;
+
+  /// The tidy category this spirit belongs to, for filtering and ordering.
+  ///
+  /// Derived rather than stored: it is a view over [name] and [type], and
+  /// caching it would let it drift from the data it comes from.
+  SpiritCategory get category =>
+      SpiritCategory.fromSpirit(name: name, type: type);
 
   /// First paragraph of [story], for card summaries.
   String? get storyExcerpt {

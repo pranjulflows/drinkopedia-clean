@@ -20,6 +20,43 @@ class SpiritsProvider extends ChangeNotifier {
   String _query = '';
   String get query => _query;
 
+  /// The category the catalogue is narrowed to, or null for everything.
+  ///
+  /// Single choice on purpose. Unlike the taste intro, which orders and never
+  /// hides, this is a filter: people reach for it to see *only* one thing, and
+  /// a multi-select filter that can quietly combine into an empty grid is a
+  /// worse answer to that than one tap per category.
+  SpiritCategory? _category;
+  SpiritCategory? get category => _category;
+
+  /// How many loaded spirits fall in each category, in display order.
+  ///
+  /// Counted over the whole catalogue rather than the current search, so the
+  /// filter row stays put while typing instead of chips vanishing mid-word.
+  /// Only categories that actually have something in them appear: a chip that
+  /// can only ever lead to an empty grid is not worth offering.
+  Map<SpiritCategory, int> get categoryCounts {
+    final List<Spirit>? all = _state.valueOrNull;
+    if (all == null) return const <SpiritCategory, int>{};
+    final Map<SpiritCategory, int> counts = <SpiritCategory, int>{};
+    for (final Spirit spirit in all) {
+      counts.update(spirit.category, (int n) => n + 1, ifAbsent: () => 1);
+    }
+    return <SpiritCategory, int>{
+      for (final SpiritCategory c in SpiritCategory.values)
+        if (counts.containsKey(c)) c: counts[c]!,
+    };
+  }
+
+  /// Narrows the catalogue to [category]. Choosing the active one again clears
+  /// it, so a chip toggles the way it looks like it should.
+  void filterBy(SpiritCategory? category) {
+    final SpiritCategory? next = category == _category ? null : category;
+    if (next == _category) return;
+    _category = next;
+    notifyListeners();
+  }
+
   /// Catalogue after the active search filter, with the categories the user
   /// picked in the taste intro floated to the top.
   ///
@@ -38,27 +75,32 @@ class SpiritsProvider extends ChangeNotifier {
       for (int i = 0; i < ordered.length; i++) ordered[i].id: i,
     };
     ordered.sort((Spirit a, Spirit b) {
-      final bool aWanted = preferred.contains(SpiritCategory.fromType(a.type));
-      final bool bWanted = preferred.contains(SpiritCategory.fromType(b.type));
+      final bool aWanted = preferred.contains(a.category);
+      final bool bWanted = preferred.contains(b.category);
       if (aWanted != bWanted) return aWanted ? -1 : 1;
       return position[a.id]!.compareTo(position[b.id]!);
     });
     return ordered;
   }
 
-  /// Catalogue after the active search filter.
+  /// Catalogue after the active category and search filters.
+  ///
+  /// The two compose — "Liqueur" plus "gin" is Sloe Gin — rather than one
+  /// overriding the other.
   List<Spirit> get visibleSpirits {
     final List<Spirit>? all = _state.valueOrNull;
     if (all == null) return const <Spirit>[];
-    if (_query.trim().isEmpty) return all;
+
+    final SpiritCategory? category = _category;
     final String needle = _query.trim().toLowerCase();
-    return all
-        .where(
-          (Spirit s) =>
-              s.name.toLowerCase().contains(needle) ||
-              (s.type?.toLowerCase().contains(needle) ?? false),
-        )
-        .toList();
+    if (category == null && needle.isEmpty) return all;
+
+    return all.where((Spirit s) {
+      if (category != null && s.category != category) return false;
+      if (needle.isEmpty) return true;
+      return s.name.toLowerCase().contains(needle) ||
+          (s.type?.toLowerCase().contains(needle) ?? false);
+    }).toList();
   }
 
   Future<void> load({bool forceRefresh = false}) async {

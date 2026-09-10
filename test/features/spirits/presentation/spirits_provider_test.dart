@@ -126,6 +126,80 @@ void main() {
     });
   });
 
+  group('category filter', () {
+    const List<Spirit> catalogue = <Spirit>[
+      Spirit(id: '1', name: 'Absinthe', type: 'Spirit'),
+      Spirit(id: '2', name: 'Bourbon', type: 'Whiskey'),
+      Spirit(id: '3', name: 'Brandy', type: 'Spirit'),
+      Spirit(id: '4', name: 'Cognac', type: 'Brandy'),
+      Spirit(id: '5', name: 'Sloe Gin', type: 'Liqueur'),
+      Spirit(id: '6', name: 'Gin', type: 'Gin'),
+    ];
+
+    test('narrows to one category', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      provider.filterBy(SpiritCategory.brandy);
+
+      expect(
+        provider.visibleSpirits.map((Spirit s) => s.name),
+        <String>['Brandy', 'Cognac'],
+        reason: 'Brandy is included despite its catch-all upstream type',
+      );
+    });
+
+    test('choosing the active category again clears it', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      provider.filterBy(SpiritCategory.gin);
+      expect(provider.category, SpiritCategory.gin);
+
+      provider.filterBy(SpiritCategory.gin);
+      expect(provider.category, isNull);
+      expect(provider.visibleSpirits.length, catalogue.length);
+    });
+
+    test('composes with search rather than replacing it', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      provider
+        ..filterBy(SpiritCategory.liqueur)
+        ..search('gin');
+
+      expect(
+        provider.visibleSpirits.map((Spirit s) => s.name),
+        <String>['Sloe Gin'],
+        reason: 'Gin matches the search but is not a liqueur',
+      );
+    });
+
+    test('counts only categories that have something in them', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      expect(provider.categoryCounts, <SpiritCategory, int>{
+        SpiritCategory.whiskey: 1,
+        SpiritCategory.gin: 1,
+        SpiritCategory.brandy: 2,
+        SpiritCategory.liqueur: 1,
+        SpiritCategory.other: 1,
+      });
+    });
+
+    test('counts ignore the search, so the row does not jump', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      final Map<SpiritCategory, int> before = provider.categoryCounts;
+
+      provider.search('bour');
+
+      expect(provider.categoryCounts, before);
+    });
+  });
+
   test('keeps previous data visible while refreshing', () async {
     stubSpirits(const <Spirit>[Spirit(id: '1', name: 'Vodka')]);
     await provider.load();

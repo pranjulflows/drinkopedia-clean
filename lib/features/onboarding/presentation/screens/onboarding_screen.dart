@@ -1,7 +1,7 @@
 import 'package:drinkopedia/app/theme/app_colors.dart';
 import 'package:drinkopedia/app/theme/app_edges.dart';
 import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
-import 'package:drinkopedia/features/onboarding/presentation/widgets/category_label.dart';
+import 'package:drinkopedia/features/spirits/presentation/widgets/category_label.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
 import 'package:drinkopedia/l10n/app_localizations.dart';
 import 'package:drinkopedia/routing/app_routes.dart';
