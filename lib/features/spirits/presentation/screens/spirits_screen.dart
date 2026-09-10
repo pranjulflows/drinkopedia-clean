@@ -55,6 +55,11 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
     final List<Spirit> visible = provider.visibleFor(
       context.watch<OnboardingProvider>().categories,
     );
+    // Search filters what the catalogue loaded, so it needs a catalogue. This
+    // is null only when the cache was empty *and* the refresh failed — the
+    // repository falls back to stale data whenever it has any — so there is
+    // genuinely nothing to search, and searching upstream would fail too.
+    final bool canSearch = provider.state.valueOrNull != null;
 
     return Scaffold(
       body: SafeArea(
@@ -97,6 +102,7 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                         hintText: l10n.searchSpirits,
                         onChanged: provider.search,
                         clearTooltip: l10n.clearSearch,
+                        enabled: canSearch,
                       ),
                       const SizedBox(height: 14),
                       _CountLabel(count: visible.length),
