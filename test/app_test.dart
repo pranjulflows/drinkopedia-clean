@@ -22,6 +22,7 @@ import 'package:drinkopedia/features/spirits/data/models/spirit_dto.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirit_detail_screen.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirits_screen.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card.dart';
+import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -314,6 +315,36 @@ void main() {
     await pumpApp(tester, onboarded: false);
     expect(find.byType(SpiritsScreen), findsOneWidget);
     expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('selected categories are not all the same colour', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+    await tester.tap(findLabel('Start'));
+    await settle(tester);
+
+    // Whiskey, Rum and Gin are adjacent in the enum, so each takes a different
+    // accent — a filled row must not read as one flat block.
+    final Set<Color?> picked = <Color?>{};
+    for (final String label in <String>['Whiskey', 'Rum', 'Gin']) {
+      await tester.tap(findLabel(label));
+      await settle(tester);
+      final AnimatedContainer panel = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.ancestor(
+                of: findLabel(label),
+                matching: find.byType(HardEdgePanel),
+              ),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      picked.add((panel.decoration! as BoxDecoration).color);
+    }
+
+    expect(picked.length, 3, reason: 'three categories, three accents');
   });
 
   testWidgets('the intro walks its three steps and lands on the catalogue', (

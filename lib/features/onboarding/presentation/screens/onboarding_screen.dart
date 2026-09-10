@@ -190,6 +190,7 @@ class _TasteStep extends StatelessWidget {
             children: SpiritCategory.values.map((SpiritCategory category) {
               return _CategoryChip(
                 label: categoryLabel(l10n, category),
+                accent: AppColors.accentForCategory(category),
                 selected: provider.isSelected(category),
                 onTap: () => provider.toggle(category),
               );
@@ -206,11 +207,17 @@ class _TasteStep extends StatelessWidget {
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
     required this.label,
+    required this.accent,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+
+  /// The category's own accent, so a filled row of chips is not one flat
+  /// block of colour and each pick stays recognisable.
+  final Color accent;
+
   final bool selected;
   final VoidCallback onTap;
 
@@ -222,14 +229,14 @@ class _CategoryChip extends StatelessWidget {
       selected: selected,
       button: true,
       child: HardEdgePanel(
-        color: selected ? AppColors.acid : theme.colorScheme.surfaceContainer,
+        color: selected ? accent : theme.colorScheme.surfaceContainer,
         shadowOffset: selected ? AppEdges.shadowCompact : Offset.zero,
         onTap: onTap,
         padding: const EdgeInsets.fromLTRB(15, 11, 15, 12),
         child: Text(
           label.toUpperCase(),
           style: theme.textTheme.titleMedium?.copyWith(
-            // The acid ground is the same in both themes, so a selected chip's
+            // The accents are identical in both themes, so a selected chip's
             // label has to stay dark even in dark mode.
             color: selected ? AppColors.ink : theme.colorScheme.onSurface,
           ),
@@ -271,7 +278,7 @@ class _DoneStep extends StatelessWidget {
             runSpacing: 8,
             children: provider.selection.map((SpiritCategory category) {
               return HardEdgePanel(
-                color: AppColors.acid,
+                color: AppColors.accentForCategory(category),
                 shadowOffset: Offset.zero,
                 padding: const EdgeInsets.fromLTRB(10, 7, 10, 8),
                 child: Text(
