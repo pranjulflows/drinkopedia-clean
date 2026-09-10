@@ -52,6 +52,18 @@ class _FakeCocktailDbApi implements CocktailDbApi {
       _lookup((Map<String, dynamic> r) => r['idIngredient'] == id);
 }
 
+/// Always fails, so the catalogue ends up with an empty cache and no network —
+/// the one state in which there is nothing at all to search.
+class _DeadCocktailDbApi implements CocktailDbApi {
+  @override
+  Future<IngredientResponse> searchIngredient(String name) async =>
+      throw Exception('offline');
+
+  @override
+  Future<IngredientResponse> lookupIngredient(String id) async =>
+      throw Exception('offline');
+}
+
 Map<String, dynamic> _ingredient(
   String id,
   String name, {
@@ -473,6 +485,40 @@ void main() {
 
     expect(find.byType(SpiritCard), findsOneWidget);
     expect(findLabel('Mezcal'), findsWidgets);
+  });
+
+  testWidgets('search is disabled when there is nothing to search', (
+    WidgetTester tester,
+  ) async {
+    // Empty cache plus a failed refresh. A field that stays live here swallows
+    // every keystroke in silence, which reads as a broken app rather than an
+    // empty one.
+    await tester.runAsync(() async {
+      await TasteRepositoryImpl(
+        dao: PreferencesDao(db),
+      ).save(const TastePreference(completed: true));
+      await tester.pumpWidget(
+        DrinkopediaApp(database: db, cocktailDbApi: _DeadCocktailDbApi()),
+      );
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tester.pump();
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).enabled,
+      isFalse,
+      reason: 'nothing loaded, so the field must not pretend to work',
+    );
+    expect(
+      find.byIcon(Icons.close),
+      findsNothing,
+      reason: 'and it offers no clear button for a query it cannot run',
+    );
   });
 
   testWidgets('the search field can be cleared and gives up focus', (
