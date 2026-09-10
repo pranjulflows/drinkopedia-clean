@@ -2,6 +2,7 @@ import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/presentation/providers/spirits_provider.dart';
+import 'package:drinkopedia/features/spirits/presentation/widgets/category_filter_bar.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card_skeleton.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_message.dart';
@@ -104,6 +105,16 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                         clearTooltip: l10n.clearSearch,
                         enabled: canSearch,
                       ),
+                      // Hidden rather than disabled when nothing loaded: a row
+                      // of chips all counting zero is noise, not a control.
+                      if (canSearch) ...<Widget>[
+                        const SizedBox(height: 14),
+                        CategoryFilterBar(
+                          counts: provider.categoryCounts,
+                          selected: provider.category,
+                          onSelected: provider.filterBy,
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       _CountLabel(count: visible.length),
                     ],

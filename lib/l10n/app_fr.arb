@@ -41,6 +41,7 @@
   "categoryBeerAndCider": "Bière et cidre",
   "categoryAperitif": "Apéritif",
   "categoryOther": "Tout le reste",
+  "filterAll": "Tout",
   "spiritCount": "{count, plural, =1{1 spiritueux} other{{count} spiritueux}}",
   "abvValue": "{value} % vol."
 }

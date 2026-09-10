@@ -28,6 +28,21 @@ enum SpiritCategory {
     if (type == null) return SpiritCategory.other;
     return _byRawType[type.trim().toLowerCase()] ?? SpiritCategory.other;
   }
+
+  /// The category for a whole spirit, preferring its name over its type.
+  ///
+  /// A spirit whose own name *is* a category belongs to that category,
+  /// whatever upstream typed it. This is not a guess: upstream types "Brandy"
+  /// itself as the catch-all `Spirit`, so by type alone a Brandy filter shows
+  /// Cognac and Pisco but not Brandy — which reads as a broken filter.
+  ///
+  /// Only exact category names are honoured, so this cannot drift into
+  /// inference: "Sloe Gin" is still a liqueur, as upstream says.
+  static SpiritCategory fromSpirit({required String name, String? type}) {
+    final SpiritCategory? byName = _byRawType[name.trim().toLowerCase()];
+    if (byName != null && byName != SpiritCategory.other) return byName;
+    return fromType(type);
+  }
 }
 
 /// Every raw value observed across the 44-name seed catalogue, lowercased.

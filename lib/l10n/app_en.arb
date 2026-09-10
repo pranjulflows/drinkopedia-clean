@@ -172,6 +172,10 @@
   "@categoryOther": {
     "description": "Spirit category for upstream catch-all types"
   },
+  "filterAll": "All",
+  "@filterAll": {
+    "description": "Catalogue filter chip that clears the category filter and shows every spirit"
+  },
   "spiritCount": "{count, plural, =1{1 spirit} other{{count} spirits}}",
   "@spiritCount": {
     "description": "Count of spirits currently listed on the catalogue screen",

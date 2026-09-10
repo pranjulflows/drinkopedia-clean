@@ -92,6 +92,14 @@ Finder findLabel(String text) => find.byWidgetPredicate(
   description: 'Text containing "$text" (case-insensitive)',
 );
 
+/// A spirit's card in the catalogue grid, found by the name on it.
+///
+/// Scoped to [SpiritCard] because a name is not unique on screen: the category
+/// filter carries chips such as "Vodka" too, and a bare text finder picks
+/// whichever comes first in the tree — tapping a filter instead of a card.
+Finder findCard(String name) =>
+    find.descendant(of: find.byType(SpiritCard), matching: findLabel(name));
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -388,7 +396,7 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(findLabel('Vodka').first);
+    await tester.tap(findCard('Vodka').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
@@ -414,7 +422,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     await pumpApp(tester);
-    await tester.tap(findLabel('Vodka').first);
+    await tester.tap(findCard('Vodka').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
@@ -446,7 +454,7 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(findLabel('Mezcal').first);
+    await tester.tap(findCard('Mezcal').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
@@ -475,6 +483,26 @@ void main() {
     await pumpUntil(tester, find.text('That page does not exist'));
 
     expect(find.text('That page does not exist'), findsOneWidget);
+  });
+
+  testWidgets('a category chip narrows the grid, and tapping it again clears', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+    expect(find.byType(SpiritCard), findsNWidgets(2));
+
+    // Vodka is typed Vodka; Mezcal is the catch-all Spirit, so "Everything
+    // else" is the chip that isolates it.
+    await tester.tap(findLabel('Everything else'));
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsOneWidget);
+    expect(findLabel('Mezcal'), findsWidgets);
+
+    await tester.tap(findLabel('Everything else'));
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsNWidgets(2));
   });
 
   testWidgets('search filters the catalogue', (WidgetTester tester) async {

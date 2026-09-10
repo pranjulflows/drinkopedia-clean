@@ -36,4 +36,31 @@ void main() {
     expect(SpiritCategory.fromType('Mead'), SpiritCategory.other);
     expect(SpiritCategory.fromType(null), SpiritCategory.other);
   });
+
+  test('a spirit named after a category belongs to it, whatever its type', () {
+    // Upstream types Brandy itself as the catch-all "Spirit". By type alone a
+    // Brandy filter would show Cognac and Pisco but not Brandy.
+    expect(
+      SpiritCategory.fromSpirit(name: 'Brandy', type: 'Spirit'),
+      SpiritCategory.brandy,
+    );
+    expect(
+      SpiritCategory.fromSpirit(name: 'Cognac', type: 'Brandy'),
+      SpiritCategory.brandy,
+    );
+  });
+
+  test('the name rule is exact, so it cannot drift into guessing', () {
+    // "Sloe Gin" contains a category name but is not one; upstream is right
+    // that it is a liqueur.
+    expect(
+      SpiritCategory.fromSpirit(name: 'Sloe Gin', type: 'Liqueur'),
+      SpiritCategory.liqueur,
+    );
+    // Tequila is not a category, so its catch-all type stands.
+    expect(
+      SpiritCategory.fromSpirit(name: 'Tequila', type: 'Spirit'),
+      SpiritCategory.other,
+    );
+  });
 }
