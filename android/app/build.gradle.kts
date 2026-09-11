@@ -14,7 +14,7 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.drinkopedia.app"
+    namespace = "com.macamps.drinkopedia"
     // Pinned ahead of `flutter.compileSdkVersion` (36): flutter_secure_storage
     // 11.0.0 compiles against API 37, so the app must at least match it.
     compileSdk = 37
@@ -29,7 +29,7 @@ android {
     defaultConfig {
         // Permanent once the first build reaches Play Console: it is the
         // app's identity there, and can never be changed or reused.
-        applicationId = "com.drinkopedia.app"
+        applicationId = "com.macamps.drinkopedia"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
