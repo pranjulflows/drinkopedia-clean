@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drinkopedia/app/theme/app_motion.dart';
 import 'package:flutter/material.dart';
 
@@ -35,6 +37,10 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
 
   bool _scheduled = false;
 
+  /// The pending start, cancelled on dispose. A card scrolled away or rebuilt
+  /// before its turn otherwise leaves a live timer behind it.
+  Timer? _startTimer;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -51,13 +57,14 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
     final Duration delay =
         AppMotion.stagger * widget.index.clamp(0, cappedSteps);
 
-    Future<void>.delayed(delay, () {
+    _startTimer = Timer(delay, () {
       if (mounted) _controller.forward();
     });
   }
 
   @override
   void dispose() {
+    _startTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

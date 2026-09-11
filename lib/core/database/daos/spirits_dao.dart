@@ -16,13 +16,27 @@ class SpiritsDao extends DatabaseAccessor<AppDatabase> with _$SpiritsDaoMixin {
     spiritsTable,
   )..where(($SpiritsTableTable t) => t.id.equals(id))).getSingleOrNull();
 
-  /// Replaces the catalogue in one transaction, so a failed refresh can never
-  /// leave a half-populated cache behind.
-  Future<void> replaceAll(Iterable<SpiritsTableCompanion> rows) {
-    return transaction(() async {
-      await delete(spiritsTable).go();
-      await batch((Batch batch) => batch.insertAll(spiritsTable, rows));
-    });
+  /// The cached rows for [names], in no particular order.
+  ///
+  /// The catalogue is paged by seed name, not by id, so this is how a page
+  /// finds out which of its entries it already has.
+  Future<List<SpiritRow>> getByNames(List<String> names) {
+    if (names.isEmpty) return Future<List<SpiritRow>>.value(<SpiritRow>[]);
+    return (select(
+      spiritsTable,
+    )..where(($SpiritsTableTable t) => t.name.isIn(names))).get();
+  }
+
+  /// Inserts or refreshes [rows] in one transaction, leaving every other row
+  /// alone.
+  ///
+  /// Deliberately not a replace. The catalogue arrives a page at a time, and
+  /// clearing the table on each write would throw away every page but the one
+  /// just loaded.
+  Future<void> upsertAll(Iterable<SpiritsTableCompanion> rows) {
+    return batch(
+      (Batch batch) => batch.insertAllOnConflictUpdate(spiritsTable, rows),
+    );
   }
 
   Future<void> upsert(SpiritsTableCompanion row) =>

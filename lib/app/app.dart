@@ -5,6 +5,7 @@ import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.da
 import 'package:drinkopedia/l10n/app_localizations.dart';
 import 'package:drinkopedia/routing/router_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -19,6 +20,7 @@ class DrinkopediaApp extends StatefulWidget {
     this.database,
     this.initialLocation,
     this.cocktailDbApi,
+    this.imageCacheManager,
   });
 
   final AppDatabase? database;
@@ -26,6 +28,9 @@ class DrinkopediaApp extends StatefulWidget {
 
   /// Stubbed in tests so no suite touches the network.
   final CocktailDbApi? cocktailDbApi;
+
+  /// Stubbed in tests so no suite needs sqflite, which the default one uses.
+  final BaseCacheManager? imageCacheManager;
 
   /// Reference canvas the `.w` / `.h` / `.sp` values were authored against.
   static const Size designSize = Size(375, 812);
@@ -42,6 +47,7 @@ class _DrinkopediaAppState extends State<DrinkopediaApp> {
         database: widget.database,
         cocktailDbApi: widget.cocktailDbApi,
         initialLocation: widget.initialLocation,
+        imageCacheManager: widget.imageCacheManager,
       ),
       child: ScreenUtilInit(
         designSize: DrinkopediaApp.designSize,

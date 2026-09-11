@@ -14,6 +14,7 @@ enum SpiritCategory {
   rum,
   gin,
   vodka,
+  tequila,
   brandy,
   liqueur,
   wine,
@@ -45,21 +46,36 @@ enum SpiritCategory {
   }
 }
 
-/// Every raw value observed across the 44-name seed catalogue, lowercased.
+/// Every raw value observed across the 145-name seed catalogue, lowercased.
+///
+/// Worth re-surveying whenever the seed grows: an unmapped type does not fail,
+/// it quietly lands in [SpiritCategory.other], which is how 23 liqueurs would
+/// have gone missing from their own filter.
 const Map<String, SpiritCategory> _byRawType = <String, SpiritCategory>{
   'whiskey': SpiritCategory.whiskey,
   'whisky': SpiritCategory.whiskey,
   'rum': SpiritCategory.rum,
   'gin': SpiritCategory.gin,
   'vodka': SpiritCategory.vodka,
+  'tequila': SpiritCategory.tequila,
+  // Not a type upstream, but an exact name: lets the name rule file Mezcal
+  // with tequila instead of in the catch-all.
+  'mezcal': SpiritCategory.tequila,
   'brandy': SpiritCategory.brandy,
   'liqueur': SpiritCategory.liqueur,
   'liquor': SpiritCategory.liqueur,
+  // An upstream misspelling, and not a rare one: 23 of the 145 catalogue
+  // entries carry it, Campari and Calvados among them. Unmapped, the Liqueur
+  // filter silently loses all of them to "Everything else".
+  'liquer': SpiritCategory.liqueur,
+  'schnapps': SpiritCategory.liqueur,
   'wine': SpiritCategory.wine,
   'fortified wine': SpiritCategory.wine,
   'rice wine': SpiritCategory.wine,
+  'sherry': SpiritCategory.wine,
   'beer': SpiritCategory.beerAndCider,
   'cider': SpiritCategory.beerAndCider,
+  'stout': SpiritCategory.beerAndCider,
   'aperitif': SpiritCategory.aperitif,
   'spirit': SpiritCategory.other,
   'beverage': SpiritCategory.other,

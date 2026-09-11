@@ -12,11 +12,12 @@ import 'package:drinkopedia/features/spirits/data/datasources/spirit_remote_data
 import 'package:drinkopedia/features/spirits/data/repositories/spirit_repository_impl.dart';
 import 'package:drinkopedia/features/spirits/domain/repositories/spirit_repository.dart';
 import 'package:drinkopedia/features/spirits/domain/usecases/get_spirit_detail.dart';
-import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits.dart';
+import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits_page.dart';
 import 'package:drinkopedia/features/spirits/presentation/providers/spirits_provider.dart';
 import 'package:drinkopedia/routing/navigation_service.dart';
 import 'package:drinkopedia/routing/router_service.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
@@ -29,15 +30,23 @@ import 'package:provider/single_child_widget.dart';
 /// [database] and [cocktailDbApi] are injectable so tests can supply an
 /// in-memory database and a stubbed API. [initialLocation] is threaded through
 /// to the router for deep links and for tests that open a specific screen.
+/// [imageCacheManager] likewise, because the default one keeps its index in
+/// sqflite, which has no implementation under the test binding.
 List<SingleChildWidget> buildProviders({
   AppDatabase? database,
   CocktailDbApi? cocktailDbApi,
   String? initialLocation,
+  BaseCacheManager? imageCacheManager,
 }) {
   final AppDatabase db = database ?? AppDatabase();
 
   return <SingleChildWidget>[
     Provider<AppDatabase>.value(value: db),
+    // Where downloaded bottle art is kept. Injected, like the database, so a
+    // test can swap in one that never touches disk.
+    Provider<BaseCacheManager>.value(
+      value: imageCacheManager ?? DefaultCacheManager(),
+    ),
     Provider<SpiritsDao>(create: (_) => SpiritsDao(db)),
     Provider<PreferencesDao>(create: (_) => PreferencesDao(db)),
 
@@ -62,9 +71,9 @@ List<SingleChildWidget> buildProviders({
       ),
     ),
 
-    Provider<GetSpirits>(
+    Provider<GetSpiritsPage>(
       create: (BuildContext context) =>
-          GetSpirits(context.read<SpiritRepository>()),
+          GetSpiritsPage(context.read<SpiritRepository>()),
     ),
     Provider<GetSpiritDetail>(
       create: (BuildContext context) =>
@@ -84,7 +93,7 @@ List<SingleChildWidget> buildProviders({
     // created per screen instead.
     ChangeNotifierProvider<SpiritsProvider>(
       create: (BuildContext context) =>
-          SpiritsProvider(getSpirits: context.read<GetSpirits>()),
+          SpiritsProvider(getSpiritsPage: context.read<GetSpiritsPage>()),
     ),
 
     // App-scoped: the intro writes the taste preference, and the catalogue

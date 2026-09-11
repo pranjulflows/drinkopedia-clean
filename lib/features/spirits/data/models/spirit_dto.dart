@@ -34,7 +34,7 @@ class SpiritDto {
   final String? name;
 
   @JsonKey(name: 'strType')
-  @LooseString()
+  @LooseLabel()
   final String? type;
 
   @JsonKey(name: 'strABV')
