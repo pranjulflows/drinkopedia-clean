@@ -131,7 +131,7 @@ body{{width:1024px;height:500px;background:{ACID};position:relative}}
 <div class="copy">
   <div class="label eyebrow">A pocket guide to spirits</div>
   <div class="display word">Drinkopedia</div>
-  <div class="body tag">The stories behind 145&nbsp;spirits.</div>
+  <div class="body tag">The stories behind<br>what you&rsquo;re drinking.</div>
 </div>
 <div class="bottle">{bottle_svg(440, ground=None)}</div>
 {chips}
@@ -140,10 +140,13 @@ body{{width:1024px;height:500px;background:{ACID};position:relative}}
 
 # --- phone screenshots ----------------------------------------------------------
 
+# No copy here states the catalogue size. It is the seed list's length and
+# grows with it, and a number baked into a store image goes stale silently.
+
 SHOTS = (
     # file, raw capture, ground, text colour, shadow, headline, subline, tilt
     ("01-catalogue", "catalogue", ACID, INK, INK,
-     "145 spirits<br>on one shelf", "Whiskey to mezcal, all in one place.", -1.5),
+     "Browse the<br>whole shelf", "Whiskey to mezcal, all in one place.", -1.5),
     ("02-origin-story", "detail", PINK, INK, INK,
      "Read the<br>origin story", "Where it came from and how it's made.", 1.5),
     ("03-filter", "filter", BLUE, PAPER, INK,

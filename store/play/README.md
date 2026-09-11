@@ -13,7 +13,7 @@ size Play Console asks for, so upload them as they are.
 Upload the screenshots in file order. The first two are the ones most people see
 without scrolling, so they lead with the catalogue and an origin story.
 
-1. `01-catalogue` — 145 spirits on one shelf
+1. `01-catalogue` — browse the whole shelf
 2. `02-origin-story` — read the origin story (Bourbon)
 3. `03-filter` — filter by what you drink (Whiskey)
 4. `04-taste` — pick your vibe (the taste intro)
@@ -40,5 +40,8 @@ the iOS status bar and Dynamic Island, is cropped off so no other platform's
 chrome appears in a Play listing. To refresh a screen, capture it at
 1206 × 2622 (iPhone 17 Pro) under the same name and rerun the script.
 
-The copy makes only claims the app backs up. Revisit the "145 spirits" lines
-whenever `assets/data/spirits_seed.json` changes size.
+The copy makes only claims the app backs up, and deliberately never states how
+many spirits there are: that is the length of `assets/data/spirits_seed.json`,
+it grows, and a number baked into an image would go stale without anyone
+noticing. The captured screens do show the app's own live count as it was at
+capture time, which is accurate for that moment.
