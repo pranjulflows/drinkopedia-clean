@@ -11,6 +11,7 @@ String categoryLabel(AppLocalizations l10n, SpiritCategory category) {
     SpiritCategory.rum => l10n.categoryRum,
     SpiritCategory.gin => l10n.categoryGin,
     SpiritCategory.vodka => l10n.categoryVodka,
+    SpiritCategory.tequila => l10n.categoryTequila,
     SpiritCategory.brandy => l10n.categoryBrandy,
     SpiritCategory.liqueur => l10n.categoryLiqueur,
     SpiritCategory.wine => l10n.categoryWine,

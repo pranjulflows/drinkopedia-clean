@@ -19,17 +19,28 @@ class CategoryFilterBar extends StatelessWidget {
     required this.counts,
     required this.selected,
     required this.onSelected,
+    this.showAll = false,
     super.key,
   });
 
   /// Categories with at least one spirit, in display order, and how many.
   final Map<SpiritCategory, int> counts;
 
+  /// Offer every category, not only those in [counts].
+  ///
+  /// For a catalogue that loads a page at a time: a category that has not
+  /// loaded yet still has to be choosable, or nothing further down the list
+  /// could ever be filtered to. Its chip shows no count until it has one.
+  final bool showAll;
+
   /// The active category, or null when showing everything.
   final SpiritCategory? selected;
 
   /// Called with the tapped category, or null for "All".
   final ValueChanged<SpiritCategory?> onSelected;
+
+  Iterable<SpiritCategory> get _categories =>
+      showAll ? SpiritCategory.values : counts.keys;
 
   @override
   Widget build(BuildContext context) {
@@ -55,16 +66,16 @@ class CategoryFilterBar extends StatelessWidget {
             onAccent: Theme.of(context).colorScheme.onPrimary,
             onTap: () => onSelected(null),
           ),
-          for (final MapEntry<SpiritCategory, int> entry in counts.entries)
+          for (final SpiritCategory category in _categories)
             _FilterChip(
-              label: categoryLabel(l10n, entry.key),
-              count: entry.value,
-              selected: selected == entry.key,
-              accent: AppColors.accentForCategory(entry.key),
+              label: categoryLabel(l10n, category),
+              count: counts[category],
+              selected: selected == category,
+              accent: AppColors.accentForCategory(category),
               // The accents are identical in both themes, so their label has to
               // stay dark even in dark mode.
               onAccent: AppColors.ink,
-              onTap: () => onSelected(entry.key),
+              onTap: () => onSelected(category),
             ),
         ],
       ),
@@ -83,7 +94,10 @@ class _FilterChip extends StatelessWidget {
   });
 
   final String label;
-  final int count;
+
+  /// Null when nothing in this category has loaded yet — shown as no count
+  /// rather than a zero that would read as "there are none".
+  final int? count;
   final bool selected;
   final Color accent;
   final Color onAccent;
@@ -119,14 +133,16 @@ class _FilterChip extends StatelessWidget {
                     letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(width: 7),
-                Text(
-                  '$count',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: foreground.withValues(alpha: 0.6),
-                    fontWeight: FontWeight.w500,
+                if (count != null) ...<Widget>[
+                  const SizedBox(width: 7),
+                  Text(
+                    '$count',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: foreground.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

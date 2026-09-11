@@ -57,10 +57,32 @@ void main() {
       SpiritCategory.fromSpirit(name: 'Sloe Gin', type: 'Liqueur'),
       SpiritCategory.liqueur,
     );
-    // Tequila is not a category, so its catch-all type stands.
+    // Absinthe is not a category, so its catch-all type stands.
+    expect(
+      SpiritCategory.fromSpirit(name: 'Absinthe', type: 'Spirit'),
+      SpiritCategory.other,
+    );
+  });
+
+  test('maps the types the expanded catalogue introduced', () {
+    // An upstream misspelling carried by 23 of the 145 entries. Unmapped, the
+    // Liqueur filter would silently lose every one of them.
+    expect(SpiritCategory.fromType('Liquer'), SpiritCategory.liqueur);
+    expect(SpiritCategory.fromType('Schnapps'), SpiritCategory.liqueur);
+    expect(SpiritCategory.fromType('Sherry'), SpiritCategory.wine);
+    expect(SpiritCategory.fromType('Stout'), SpiritCategory.beerAndCider);
+    expect(SpiritCategory.fromType('Tequila'), SpiritCategory.tequila);
+  });
+
+  test('tequila and mezcal share a category, by name as well as type', () {
+    // Both are typed as the catch-all "Spirit" upstream.
     expect(
       SpiritCategory.fromSpirit(name: 'Tequila', type: 'Spirit'),
-      SpiritCategory.other,
+      SpiritCategory.tequila,
+    );
+    expect(
+      SpiritCategory.fromSpirit(name: 'Mezcal', type: 'Spirit'),
+      SpiritCategory.tequila,
     );
   });
 }

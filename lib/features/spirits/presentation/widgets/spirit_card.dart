@@ -6,6 +6,8 @@ import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_chip.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:provider/provider.dart';
 
 /// Catalogue tile.
 ///
@@ -116,6 +118,7 @@ class SpiritArtwork extends StatelessWidget {
           ? fallback
           : CachedNetworkImage(
               imageUrl: spirit.imageUrl!,
+              cacheManager: context.read<BaseCacheManager>(),
               fit: BoxFit.contain,
               fadeInDuration: AppMotion.quick,
               placeholder: (BuildContext context, String url) =>

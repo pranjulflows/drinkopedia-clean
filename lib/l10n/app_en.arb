@@ -76,7 +76,7 @@
   "@appTagline": {
     "description": "One-line description of the app, shown on the splash screen"
   },
-  "onboardingWelcomeTitle": "44 spirits.\nEvery one\nhas a story.",
+  "onboardingWelcomeTitle": "145 spirits.\nThe stories\nbehind them.",
   "@onboardingWelcomeTitle": {
     "description": "Headline on the first step of the taste intro"
   },
@@ -175,6 +175,30 @@
   "filterAll": "All",
   "@filterAll": {
     "description": "Catalogue filter chip that clears the category filter and shows every spirit"
+  },
+  "categoryTequila": "Tequila & mezcal",
+  "@categoryTequila": {
+    "description": "Spirit category name, covering tequila and mezcal"
+  },
+  "spiritCountOf": "{count} of {total} spirits",
+  "@spiritCountOf": {
+    "description": "Catalogue count while more pages remain to load",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "loadMoreFailed": "Couldn't load more.",
+  "@loadMoreFailed": {
+    "description": "Shown at the foot of the catalogue when fetching the next page fails"
+  },
+  "endOfShelf": "That's the whole shelf.",
+  "@endOfShelf": {
+    "description": "Shown at the foot of the catalogue once every page has loaded"
   },
   "spiritCount": "{count, plural, =1{1 spirit} other{{count} spirits}}",
   "@spiritCount": {

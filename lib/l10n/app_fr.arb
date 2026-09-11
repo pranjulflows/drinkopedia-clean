@@ -19,7 +19,7 @@
   "refresh": "Actualiser",
   "clearSearch": "Effacer la recherche",
   "appTagline": "Les histoires derrière ce que vous buvez.",
-  "onboardingWelcomeTitle": "44 spiritueux.\nChacun a\nson histoire.",
+  "onboardingWelcomeTitle": "145 spiritueux.\nEt leurs\nhistoires.",
   "onboardingWelcomeBody": "Une référence, pas une liste de recettes. Deux gestes et l'étagère est à vous.",
   "onboardingStart": "Commencer",
   "onboardingTasteTitle": "Qu'est-ce qui vous tente ?",
@@ -42,6 +42,10 @@
   "categoryAperitif": "Apéritif",
   "categoryOther": "Tout le reste",
   "filterAll": "Tout",
+  "categoryTequila": "Tequila et mezcal",
+  "spiritCountOf": "{count} sur {total} spiritueux",
+  "loadMoreFailed": "Impossible d'en charger plus.",
+  "endOfShelf": "C'est toute l'étagère.",
   "spiritCount": "{count, plural, =1{1 spiritueux} other{{count} spiritueux}}",
   "abvValue": "{value} % vol."
 }

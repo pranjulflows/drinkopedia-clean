@@ -1,3 +1,4 @@
+import 'package:drinkopedia/app/theme/app_edges.dart';
 import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
@@ -37,13 +38,49 @@ class SpiritsScreen extends StatefulWidget {
 }
 
 class _SpiritsScreenState extends State<SpiritsScreen> {
+  /// How close to the end of the list, in pixels, the next page is requested.
+  /// About two rows of cards: far enough ahead that it has usually landed by
+  /// the time the finger gets there.
+  static const double _loadAheadExtent = 600;
+
+  final ScrollController _scroll = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_maybeLoadMore);
     // Deferred: providers must not be mutated during the first build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<SpiritsProvider>().load();
     });
+  }
+
+  @override
+  void dispose() {
+    _scroll
+      ..removeListener(_maybeLoadMore)
+      ..dispose();
+    super.dispose();
+  }
+
+  /// Asks for the next page once the end of the list is near.
+  ///
+  /// Also run after every build, not only on scroll. A list shorter than the
+  /// screen never scrolls — which is exactly what a category filter produces
+  /// before its spirits have loaded — and without this it would sit there
+  /// empty with nothing to drag. Checking after each build keeps loading until
+  /// the screen fills or the catalogue runs out. [SpiritsProvider.loadMore]
+  /// ignores calls it cannot act on, so calling it freely is safe.
+  void _maybeLoadMore() {
+    if (!mounted || !_scroll.hasClients) return;
+    final ScrollPosition position = _scroll.position;
+    // Attached but not yet laid out, so it has no extent to measure. This is
+    // the catalogue built underneath a deep-linked detail screen: it exists in
+    // the route stack but has never been sized, and asking its extent throws.
+    if (!position.hasContentDimensions) return;
+    if (position.extentAfter < _loadAheadExtent) {
+      context.read<SpiritsProvider>().loadMore();
+    }
   }
 
   @override
@@ -61,6 +98,7 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
     // repository falls back to stale data whenever it has any — so there is
     // genuinely nothing to search, and searching upstream would fail too.
     final bool canSearch = provider.state.valueOrNull != null;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadMore());
 
     return Scaffold(
       body: SafeArea(
@@ -70,6 +108,7 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
           color: theme.colorScheme.onSurface,
           backgroundColor: theme.colorScheme.surfaceContainer,
           child: CustomScrollView(
+            controller: _scroll,
             // Dragging the results puts the keyboard away. On a phone it covers
             // half the catalogue, so scrolling to look at what you searched for
             // is the most natural way to ask for it to go.
@@ -113,10 +152,25 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                           counts: provider.categoryCounts,
                           selected: provider.category,
                           onSelected: provider.filterBy,
+                          // Every category, not only those loaded so far:
+                          // otherwise nothing further down the catalogue could
+                          // be filtered to until it had been scrolled to.
+                          showAll: true,
                         ),
                       ],
                       const SizedBox(height: 14),
-                      _CountLabel(count: visible.length),
+                      _CountLabel(
+                        count: visible.length,
+                        // "20 of 145" only while browsing unfiltered: under a
+                        // filter or search the total would count spirits that
+                        // could never appear in this list.
+                        total:
+                            provider.hasMore &&
+                                provider.category == null &&
+                                provider.query.trim().isEmpty
+                            ? provider.total
+                            : null,
+                      ),
                     ],
                   ),
                 ),
@@ -136,19 +190,27 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
 /// How many spirits are on screen. Hidden until there is a real number, so it
 /// never flashes a zero while the first load is in flight.
 class _CountLabel extends StatelessWidget {
-  const _CountLabel({required this.count});
+  const _CountLabel({required this.count, this.total});
 
   final int count;
+
+  /// The whole catalogue's size, when it is worth saying how much is left.
+  final int? total;
 
   @override
   Widget build(BuildContext context) {
     if (count == 0) return const SizedBox(height: 4);
 
     final ThemeData theme = Theme.of(context);
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final int? total = this.total;
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Text(
-        AppLocalizations.of(context)!.spiritCount(count).toUpperCase(),
+        (total == null
+                ? l10n.spiritCount(count)
+                : l10n.spiritCountOf(count, total))
+            .toUpperCase(),
         style: theme.textTheme.labelLarge?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -190,16 +252,30 @@ class _SpiritsBody extends StatelessWidget {
       LoadingState<List<Spirit>>() ||
       SuccessState<List<Spirit>>() => _SpiritsGrid(
         spirits: visible,
-        emptyLabel: provider.query.trim().isEmpty ? null : l10n.noMatches,
+        provider: provider,
+        // "No matches" only once there is nothing left to look through. While
+        // pages remain, an empty filtered grid is still searching — the footer
+        // shows it loading — and saying "no matches" would be premature.
+        emptyLabel: _isFiltering(provider) && !provider.hasMore
+            ? l10n.noMatches
+            : null,
       ),
     };
   }
 }
 
+bool _isFiltering(SpiritsProvider provider) =>
+    provider.category != null || provider.query.trim().isNotEmpty;
+
 class _SpiritsGrid extends StatelessWidget {
-  const _SpiritsGrid({required this.spirits, this.emptyLabel});
+  const _SpiritsGrid({
+    required this.spirits,
+    required this.provider,
+    this.emptyLabel,
+  });
 
   final List<Spirit> spirits;
+  final SpiritsProvider provider;
   final String? emptyLabel;
 
   @override
@@ -210,26 +286,123 @@ class _SpiritsGrid extends StatelessWidget {
 
     final NavigationService navigator = context.read<NavigationService>();
 
-    return SliverGrid.builder(
-      gridDelegate: _gridDelegate,
-      itemCount: spirits.length,
-      itemBuilder: (BuildContext context, int index) {
-        final Spirit spirit = spirits[index];
-        return StaggeredEntrance(
-          index: index,
-          // Hard edges do not fade in; see StaggeredEntrance.fade.
-          fade: false,
-          child: SpiritCard(
-            spirit: spirit,
-            onTap: () => navigator.goToSpiritDetail(
-              context,
-              spirit.id,
-              preloaded: spirit,
-            ),
-          ),
-        );
-      },
+    return SliverMainAxisGroup(
+      slivers: <Widget>[
+        SliverGrid.builder(
+          gridDelegate: _gridDelegate,
+          itemCount: spirits.length,
+          itemBuilder: (BuildContext context, int index) {
+            final Spirit spirit = spirits[index];
+            return StaggeredEntrance(
+              // Staggered within a page, so a page arriving deep in the list
+              // cascades in like the first one rather than all at once after
+              // the stagger cap.
+              index: index % provider.pageSize,
+              // Hard edges do not fade in; see StaggeredEntrance.fade.
+              fade: false,
+              child: SpiritCard(
+                spirit: spirit,
+                onTap: () => navigator.goToSpiritDetail(
+                  context,
+                  spirit.id,
+                  preloaded: spirit,
+                ),
+              ),
+            );
+          },
+        ),
+        _LoadMoreFooter(provider: provider, hasItems: spirits.isNotEmpty),
+      ],
     );
+  }
+}
+
+/// What sits under the grid: the next page loading, a failed page to retry, or
+/// word that the shelf has run out.
+class _LoadMoreFooter extends StatelessWidget {
+  const _LoadMoreFooter({required this.provider, required this.hasItems});
+
+  final SpiritsProvider provider;
+  final bool hasItems;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+
+    if (provider.isLoadingMore) {
+      // Skeleton cards rather than a spinner, in the grid's own geometry, so
+      // the arriving page lands exactly where its placeholders were.
+      return SliverPadding(
+        padding: EdgeInsets.only(top: hasItems ? 18 : 0),
+        sliver: SliverGrid.builder(
+          gridDelegate: _gridDelegate,
+          itemCount: 2,
+          itemBuilder: (BuildContext context, int index) =>
+              const SpiritCardSkeleton(),
+        ),
+      );
+    }
+
+    if (provider.loadMoreFailure != null) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 28),
+          child: Column(
+            children: <Widget>[
+              Text(
+                l10n.loadMoreFailed,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              HardEdgeButton(
+                label: l10n.retry,
+                onPressed: provider.retryLoadMore,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Only for the unfiltered shelf: under a filter, running out of pages is
+    // what the grid itself already shows.
+    if (!provider.hasMore && hasItems && !_isFiltering(provider)) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 36),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Container(
+                  height: AppEdges.borderHairline,
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  l10n.endOfShelf.toUpperCase(),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  height: AppEdges.borderHairline,
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return const SliverToBoxAdapter(child: SizedBox.shrink());
   }
 }
 

@@ -15,8 +15,8 @@ class AppMotion {
   /// Gap between consecutive items in a staggered list.
   static const Duration stagger = Duration(milliseconds: 45);
 
-  /// Cap on total stagger delay: with 44 catalogue entries an uncapped stagger
-  /// would leave the last card two seconds behind the first.
+  /// Cap on total stagger delay: across a 20-card page an uncapped stagger
+  /// would leave the last card nearly a second behind the first.
   static const Duration maxStagger = Duration(milliseconds: 400);
 
   static const Curve enter = Curves.easeOutCubic;

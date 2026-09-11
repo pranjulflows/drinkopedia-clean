@@ -52,6 +52,20 @@ void main() {
       expect(spirit.abv, isNull);
     });
 
+    test('corrects upstream\'s "Liquer" spelling, and nothing else', () {
+      String? typeOf(Object? raw) => SpiritDto.fromJson(<String, dynamic>{
+        'idIngredient': '9',
+        'strIngredient': 'Pernod',
+        'strType': raw,
+      }).type;
+
+      expect(typeOf('Liquer'), 'Liqueur');
+      expect(typeOf('liquer'), 'Liqueur');
+      expect(typeOf('Liqueur'), 'Liqueur');
+      expect(typeOf('Fortified Wine'), 'Fortified Wine');
+      expect(typeOf('null'), isNull);
+    });
+
     test('accepts a numeric ABV as well as a string one', () {
       expect(
         SpiritDto.fromJson(<String, dynamic>{
