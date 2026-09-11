@@ -1,5 +1,8 @@
 # Play Console graphics
 
+> Store listing text is in `listing/en-US/`, and the full publishing walkthrough,
+> with an answer for every Play Console form, is in [`PLAY_CONSOLE.md`](PLAY_CONSOLE.md).
+
 Store listing assets for Google Play, in the neo-brutalist pop direction the app
 itself uses (see `docs/design-directions.md`). Each file is already at the exact
 size Play Console asks for, so upload them as they are.
