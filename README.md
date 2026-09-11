@@ -65,7 +65,7 @@ came from. `search.php?i={name}` returns a `strDescription` running to thousands
 alphabetically at "Kiwi"; `filter.php?i=Gin` returns a single drink. Per-name lookup is
 **not** capped.
 
-The app is designed around that: a curated seed list of 145 verified spirit names
+The app is designed around that: a curated seed list of verified spirit names
 (`assets/data/spirits_seed.json`, storied entries first) is hydrated name by name, 20 at a
 time as the catalogue scrolls, and cached in SQLite. Browse reads from the cache, never from
 a capped endpoint — which also means it works offline and stays off a rate-limited key.

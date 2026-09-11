@@ -65,7 +65,7 @@ void main() {
   });
 
   test('maps the types the expanded catalogue introduced', () {
-    // An upstream misspelling carried by 23 of the 145 entries. Unmapped, the
+    // An upstream misspelling carried by 23 catalogue entries. Unmapped, the
     // Liqueur filter would silently lose every one of them.
     expect(SpiritCategory.fromType('Liquer'), SpiritCategory.liqueur);
     expect(SpiritCategory.fromType('Schnapps'), SpiritCategory.liqueur);
