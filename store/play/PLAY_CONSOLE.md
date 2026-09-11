@@ -12,7 +12,7 @@ are done.
 
 | # | What | Why |
 |---|---|---|
-| 1 | Merge PRs #13, #14 and #15, then release `development` → `main` | #15 is what makes the build uploadable (package name, INTERNET permission, release signing). |
+| 1 | Release `development` → `main` | PRs #13–#15 are merged into `development`. #15 is what makes the build uploadable: package name `com.macamps.drinkopedia`, the INTERNET permission, and release signing. |
 | 2 | **Buy TheCocktailDB's premium key** | The free test key `1` is not licensed for a public store release. Check thecocktaildb.com for current terms. The premium API may live under `/v2/` rather than `/v1/`, and `ApiSources.cocktailDbBaseUrl` hardcodes `/v1/`, so test the key against both before building. |
 | 3 | **Credit Wikipedia in the app** | Many stories come from Wikipedia under CC BY-SA, which requires visible attribution where the text is shown, such as a line under "The Story". Crediting it in the store description alone is not enough. |
 | 4 | **Create the upload key** (once, and keep it safe) | Play rejects debug-signed bundles. See section 7. |
@@ -82,7 +82,7 @@ Policy → **App content**. Every item has to be completed before release.
 
 | Declaration | Answer | Why |
 |---|---|---|
-| **Privacy policy** | `https://pranjulflows.github.io/drinkopedia-clean/privacy-policy.html` | Source: `docs/privacy-policy.md`. Replace `CONTACT_EMAIL` first, then GitHub → Settings → Pages → deploy from the branch holding `docs/`, folder `/docs`. |
+| **Privacy policy** | `https://pranjulflows.github.io/drinkopedia-clean/privacy-policy.html` | Source: `docs/privacy-policy.md`, served by GitHub Pages from `development`, folder `/docs`. Check that the URL loads before pasting it in. |
 | **Ads** | No, the app doesn't contain ads | No ad SDK in `pubspec.yaml` |
 | **App access** | All functionality is available without special access | No login |
 | **Content rating** | Fill in the IARC questionnaire. Category: *Reference, News, or Educational*. Answer **yes** to references to alcohol, and **no** to violence, sexual content, gambling, user interaction, sharing location and purchases. | The rating is calculated from your answers. Alcohol references usually land around teen or 12+/16+ depending on the region. |

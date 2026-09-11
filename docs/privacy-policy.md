@@ -56,4 +56,4 @@ and the effective date above will change with it.
 
 ## Contact
 
-Questions about this policy: `CONTACT_EMAIL`
+Questions about this policy: [pranjulideation@gmail.com](mailto:pranjulideation@gmail.com)
