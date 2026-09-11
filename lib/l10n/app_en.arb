@@ -76,9 +76,9 @@
   "@appTagline": {
     "description": "One-line description of the app, shown on the splash screen"
   },
-  "onboardingWelcomeTitle": "145 spirits.\nThe stories\nbehind them.",
+  "onboardingWelcomeTitle": "Know what\nyou're\ndrinking.",
   "@onboardingWelcomeTitle": {
-    "description": "Headline on the first step of the taste intro"
+    "description": "Headline on the first step of the taste intro. Must not state the catalogue size: it comes from the seed list and changes with it, and this string would silently go stale"
   },
   "onboardingWelcomeBody": "This is a reference, not a recipe list. Two taps and the shelf is yours.",
   "@onboardingWelcomeBody": {
