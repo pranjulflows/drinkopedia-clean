@@ -1,11 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing reads the upload key from android/key.properties, which is
+// gitignored along with the keystore itself and must never be committed.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
 android {
-    namespace = "com.example.drinkopedia"
+    namespace = "com.macamps.drinkopedia"
     // Pinned ahead of `flutter.compileSdkVersion` (36): flutter_secure_storage
     // 11.0.0 compiles against API 37, so the app must at least match it.
     compileSdk = 37
@@ -18,19 +27,34 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.drinkopedia"
+        // Permanent once the first build reaches Play Console: it is the
+        // app's identity there, and can never be changed or reused.
+        applicationId = "com.macamps.drinkopedia"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Without key.properties this falls back to the debug key so that
+            // `flutter run --release` still works locally. Play Console rejects
+            // anything debug-signed, so such a build can never be uploaded.
+            signingConfig = if (keystoreProperties.isEmpty) {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("release")
+            }
         }
     }
 }

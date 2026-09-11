@@ -1,4 +1,4 @@
-package com.example.drinkopedia
+package com.macamps.drinkopedia
 
 import io.flutter.embedding.android.FlutterActivity
 
