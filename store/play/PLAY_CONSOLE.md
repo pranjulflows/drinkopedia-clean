@@ -12,7 +12,7 @@ are done.
 
 | # | What | Why |
 |---|---|---|
-| 1 | Release `development` → `main` | PRs #13–#15 are merged into `development`. #15 is what makes the build uploadable: package name `com.macamps.drinkopedia`, the INTERNET permission, and release signing. |
+| 1 | Release `development` → `main` | `development` already has everything that makes the build uploadable: package name `com.drinkopedia.app`, the INTERNET permission, and release signing. |
 | 2 | **Buy TheCocktailDB's premium key** | The free test key `1` is not licensed for a public store release. Check thecocktaildb.com for current terms. The premium API may live under `/v2/` rather than `/v1/`, and `ApiSources.cocktailDbBaseUrl` hardcodes `/v1/`, so test the key against both before building. |
 | 3 | **Credit Wikipedia in the app** | Many stories come from Wikipedia under CC BY-SA, which requires visible attribution where the text is shown, such as a line under "The Story". Crediting it in the store description alone is not enough. |
 | 4 | **Create the upload key** (once, and keep it safe) | Play rejects debug-signed bundles. See section 7. |
