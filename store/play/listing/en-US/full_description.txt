@@ -1,9 +1,12 @@
-Drinkopedia is a pocket guide to spirits, liqueurs, wine and beer. Look up what's in your glass, then read where it came from and how it's made, written out in full rather than squeezed onto a recipe card.
+Drinkopedia is a pocket guide to liquor and everything else behind the bar: spirits, liqueurs, wine and beer. Look up what's in your glass, then read where it came from and how it's made, written out in full rather than squeezed onto a recipe card.
 
 It's a reference, not a cocktail recipe app. Open Bourbon and you get the story of American whiskey: what it's distilled from, why it's aged in barrels and where the name comes from. Open Amaretto and find out why a sweet almond liqueur is named after the Italian word for "a little bitter".
 
 WHAT'S ON THE SHELF
-Whiskey, bourbon, Scotch and rye. Gin, rum, vodka, tequila and mezcal. Brandy, cognac and calvados. Liqueurs, from amaretto and Chartreuse to crème de menthe. Vermouth and aperitifs like Campari and Aperol. Absinthe, sake, ouzo, pisco and cachaça. Wine, Champagne, sherry, port, beer and cider.
+Whiskey, bourbon, rye and Scotch whisky. Gin, rum, vodka, tequila and mezcal. Brandy, cognac and calvados. Liqueurs, from amaretto and Chartreuse to crème de menthe. Vermouth and aperitifs like Campari and Aperol. Absinthe, sake, ouzo, pisco and cachaça. Wine, Champagne, sherry, port, beer and cider.
+
+THE HISTORY BEHIND THE BOTTLE
+Why is bourbon aged in charred oak? What has to happen before a whisky can be called Scotch? Why was absinthe banned, and where does the blue agave in tequila grow? The origin stories in Drinkopedia answer questions like these, so you know what's in your glass and where each liquor came from.
 
 WHAT YOU CAN DO
 • Read the origin story: the history, the production and the name behind each drink, wherever there's one to tell.

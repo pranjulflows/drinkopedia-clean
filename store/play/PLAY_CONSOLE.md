@@ -36,7 +36,7 @@ Play Console → **Create app**
 
 | Field | Answer |
 |---|---|
-| App name | `Drinkopedia: Spirits Guide` |
+| App name | `Drinkopedia: Liquor & Whiskey` |
 | Default language | English (United States) – en-US |
 | App or game | App |
 | Free or paid | **Free**. A free app can never become paid later. |
@@ -46,23 +46,37 @@ Play Console → **Create app**
 
 Grow → Store presence → **Main store listing**
 
-| Field | Source | Limit |
+| Field | Source (from the repo root) | Limit |
 |---|---|---|
-| App name | `listing/en-US/title.txt` | 30 |
-| Short description | `listing/en-US/short_description.txt` | 80 |
-| Full description | `listing/en-US/full_description.txt` | 4000 |
-| App icon | `icon-512.png` | 512 × 512 PNG |
-| Feature graphic | `feature-graphic-1024x500.png` | 1024 × 500 |
-| Phone screenshots | `phone-screenshots/01…06.png`, in file order | 2–8 |
+| App name | `store/play/listing/en-US/title.txt` | 30 |
+| Short description | `store/play/listing/en-US/short_description.txt` | 80 |
+| Full description | `store/play/listing/en-US/full_description.txt` | 4000 |
+| App icon | `store/play/icon-512.png` | 512 × 512 PNG |
+| Feature graphic | `store/play/feature-graphic-1024x500.png` | 1024 × 500 |
+| Phone screenshots | `store/play/phone-screenshots/01…06.png`, in file order | 2–8 |
 | Tablet screenshots | Leave empty. Only needed to be featured on tablets. | — |
 | Video | Leave empty | — |
 
 The copy follows Play's metadata policy. It avoids "best" and "#1", doesn't
 repeat keywords, has no calls to action and no emoji, and claims nothing the
-app doesn't do. Spirit names, including the ones people search for (whiskey,
-bourbon, gin, rum, tequila, mezcal and others), appear once each in natural
-sentences, which is what Play's search indexes. The listing never states how
-many spirits there are, because that number changes with the catalogue.
+app doesn't do. The listing never states how many spirits there are, because
+that number changes with the catalogue.
+
+**Keyword choices** (checked against live Play Store results, September 2026):
+
+- **"Liquor"** leads the title and the short description. Play's results for
+  "liquor guide" are mostly liquor stores and generic cocktail apps, so a
+  reference app can compete there.
+- **"Whiskey"** is the most-searched spirit. Its results are held by
+  dedicated whisky apps (Whiskybase, Distilld and others), so it's a secondary
+  target. The full description also uses the "whisky" spelling that Scotch
+  drinkers search for.
+- **"Spirits guide" is avoided on purpose.** On Play it returns ghost and
+  psychic apps, not drinks.
+- **"Alcohol" isn't targeted.** Its results are sobriety trackers.
+- Other drink names (bourbon, gin, rum, tequila, mezcal, cognac and more)
+  appear in natural sentences, and the history questions in the full
+  description are all answered by stories in the app.
 
 ## 4. Store settings
 
