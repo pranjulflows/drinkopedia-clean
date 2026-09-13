@@ -217,5 +217,96 @@
         "type": "String"
       }
     }
+  },
+  "filters": "Filters",
+  "@filters": {
+    "description": "Label and tooltip of the button that opens the filter sheet, and the sheet's heading"
+  },
+  "filtersActive": "{count, plural, =1{Filters, 1 active} other{Filters, {count} active}}",
+  "@filtersActive": {
+    "description": "Accessible label of the Filters button while filters are applied",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "filterCategoryHeading": "Category",
+  "@filterCategoryHeading": {
+    "description": "Filter sheet section: which kinds of drink to show"
+  },
+  "filterStrengthHeading": "Strength",
+  "@filterStrengthHeading": {
+    "description": "Filter sheet section: alcohol-by-volume bands"
+  },
+  "strengthLight": "Light · under 20%",
+  "@strengthLight": {
+    "description": "Strength band chip for drinks under 20% ABV"
+  },
+  "strengthMedium": "Medium · 20–37%",
+  "@strengthMedium": {
+    "description": "Strength band chip for drinks from 20% to just under 37.5% ABV"
+  },
+  "strengthStrong": "Strong · 37.5%+",
+  "@strengthStrong": {
+    "description": "Strength band chip for drinks of 37.5% ABV and over"
+  },
+  "strengthNote": "Only spirits with a known ABV can be sorted into a band.",
+  "@strengthNote": {
+    "description": "Explains why picking a strength band hides spirits whose ABV is unknown"
+  },
+  "filterStoryHeading": "Origin story",
+  "@filterStoryHeading": {
+    "description": "Filter sheet section: whether a spirit has a story"
+  },
+  "filterStoriesOnly": "Only spirits with a story",
+  "@filterStoriesOnly": {
+    "description": "Toggle chip that hides spirits without an origin story"
+  },
+  "sortHeading": "Sort",
+  "@sortHeading": {
+    "description": "Filter sheet section: the order of the shelf"
+  },
+  "sortCatalogue": "Stories first",
+  "@sortCatalogue": {
+    "description": "Default sort: spirits with a story first, each group A–Z"
+  },
+  "sortAToZ": "A–Z",
+  "@sortAToZ": {
+    "description": "Alphabetical sort"
+  },
+  "sortStrongest": "Strongest first",
+  "@sortStrongest": {
+    "description": "Sort by ABV, highest first"
+  },
+  "showSpirits": "{count, plural, =0{No spirits match} =1{Show 1 spirit} other{Show {count} spirits}}",
+  "@showSpirits": {
+    "description": "Apply button in the filter sheet, with how many spirits the filter would show",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "showSpiritsSoFar": "{count, plural, =0{None loaded yet – show anyway} =1{Show 1 spirit so far} other{Show {count} spirits so far}}",
+  "@showSpiritsSoFar": {
+    "description": "Apply button while more of the catalogue is still to load, so the count may grow",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "resetFilters": "Reset",
+  "@resetFilters": {
+    "description": "Clears every filter in the sheet, or on the empty result"
+  },
+  "noFilterMatches": "No spirits match these filters",
+  "@noFilterMatches": {
+    "description": "Shown when the whole shelf has loaded and nothing passes the filters"
+  },
+  "sortingShelf": "Sorting the whole shelf…",
+  "@sortingShelf": {
+    "description": "Shown while every page loads so a chosen sort can be applied across the whole catalogue"
   }
 }

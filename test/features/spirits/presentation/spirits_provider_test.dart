@@ -3,6 +3,7 @@ import 'package:drinkopedia/core/error/failure.dart';
 import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
+import 'package:drinkopedia/features/spirits/domain/entities/spirit_filter.dart';
 import 'package:drinkopedia/features/spirits/domain/repositories/spirit_repository.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit_page.dart';
 import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits_page.dart';
@@ -173,10 +174,10 @@ void main() {
       await provider.load();
 
       provider.filterBy(SpiritCategory.gin);
-      expect(provider.category, SpiritCategory.gin);
+      expect(provider.filter.categories, <SpiritCategory>{SpiritCategory.gin});
 
       provider.filterBy(SpiritCategory.gin);
-      expect(provider.category, isNull);
+      expect(provider.filter.categories, isEmpty);
       expect(provider.visibleSpirits.length, catalogue.length);
     });
 
@@ -216,6 +217,138 @@ void main() {
       provider.search('bour');
 
       expect(provider.categoryCounts, before);
+    });
+  });
+
+  group('filter sheet', () {
+    const List<Spirit> catalogue = <Spirit>[
+      Spirit(id: '1', name: 'Gin', type: 'Gin', abv: 40, story: 'Juniper.'),
+      Spirit(
+        id: '2',
+        name: 'Amaretto',
+        type: 'Liqueur',
+        abv: 28,
+        story: 'Almond.',
+      ),
+      Spirit(id: '3', name: 'Tuaca', type: 'Liqueur'),
+      Spirit(
+        id: '4',
+        name: 'Ale',
+        type: 'Beer',
+        abv: 4,
+        story: 'Top-fermented.',
+      ),
+      Spirit(id: '5', name: 'Bourbon', type: 'Whiskey', story: 'Corn.'),
+    ];
+
+    List<String> names() =>
+        provider.visibleSpirits.map((Spirit s) => s.name).toList();
+
+    test('applies every part of the filter, then its sort', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      provider.applyFilter(
+        const SpiritFilter(
+          categories: <SpiritCategory>{
+            SpiritCategory.liqueur,
+            SpiritCategory.gin,
+          },
+          storiesOnly: true,
+          sort: SpiritSort.aToZ,
+        ),
+      );
+
+      expect(names(), <String>['Amaretto', 'Gin']);
+    });
+
+    test('counts a draft without applying it', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+
+      final int count = provider.countMatching(
+        const SpiritFilter(strengths: <Strength>{Strength.strong}),
+      );
+
+      expect(count, 1, reason: 'only Gin is 37.5% or over');
+      expect(provider.filter.isDefault, isTrue);
+      expect(names().length, catalogue.length);
+    });
+
+    test('a draft count respects the search', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      provider.search('a');
+
+      // Amaretto, Tuaca and Ale contain an "a"; of those, two are liqueurs.
+      expect(
+        provider.countMatching(
+          const SpiritFilter(
+            categories: <SpiritCategory>{SpiritCategory.liqueur},
+          ),
+        ),
+        2,
+      );
+    });
+
+    test('a chip tap narrows to one category, even after the sheet picked '
+        'several', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      provider.applyFilter(
+        const SpiritFilter(
+          categories: <SpiritCategory>{
+            SpiritCategory.liqueur,
+            SpiritCategory.gin,
+          },
+          storiesOnly: true,
+        ),
+      );
+
+      provider.filterBy(SpiritCategory.gin);
+
+      expect(provider.filter.categories, <SpiritCategory>{SpiritCategory.gin});
+      expect(provider.filter.storiesOnly, isTrue, reason: 'the rest is kept');
+    });
+
+    test('a chosen sort outranks the taste intro\'s ordering', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      provider.applyFilter(const SpiritFilter(sort: SpiritSort.aToZ));
+
+      final List<String> ordered = provider
+          .visibleFor(<SpiritCategory>{SpiritCategory.beerAndCider})
+          .map((Spirit s) => s.name)
+          .toList();
+
+      expect(ordered, <String>['Ale', 'Amaretto', 'Bourbon', 'Gin', 'Tuaca']);
+    });
+
+    test('reset clears every part of the filter', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      provider.applyFilter(
+        const SpiritFilter(
+          strengths: <Strength>{Strength.light},
+          sort: SpiritSort.strongest,
+        ),
+      );
+
+      provider.resetFilter();
+
+      expect(provider.filter, const SpiritFilter());
+      expect(names().length, catalogue.length);
+    });
+
+    test('applying the filter already in place notifies nobody', () async {
+      stubSpirits(catalogue);
+      await provider.load();
+      int notified = 0;
+      provider.addListener(() => notified++);
+
+      provider.applyFilter(const SpiritFilter());
+
+      expect(notified, 0);
     });
   });
 
@@ -396,6 +529,68 @@ void main() {
         verify(
           () => repo.getSpiritsPage(offset: 2, limit: 2, forceRefresh: true),
         ).called(1);
+      },
+    );
+
+    test(
+      'a chosen sort fetches every remaining page before it shows',
+      () async {
+        stubPaged();
+        await provider.load();
+
+        provider.applyFilter(const SpiritFilter(sort: SpiritSort.aToZ));
+
+        // Sorting a partial shelf would reshuffle the cards on screen as each
+        // page landed, so the rest starts loading straight away.
+        expect(provider.needsWholeShelf, isTrue);
+        expect(provider.isLoadingMore, isTrue);
+
+        await provider.loadAll();
+
+        expect(provider.hasMore, isFalse);
+        expect(provider.needsWholeShelf, isFalse);
+        expect(ids().length, 10);
+      },
+    );
+
+    test('the catalogue sort does not load the whole shelf', () async {
+      stubPaged();
+      await provider.load();
+
+      provider.applyFilter(const SpiritFilter(storiesOnly: true));
+
+      expect(provider.needsWholeShelf, isFalse);
+      expect(provider.isLoadingMore, isFalse);
+    });
+
+    test(
+      'a failed page stops a sort, and a retry carries on to the end',
+      () async {
+        stubPaged();
+        await provider.load();
+        when(
+          () => repo.getSpiritsPage(
+            offset: 4,
+            limit: any(named: 'limit'),
+            forceRefresh: any(named: 'forceRefresh'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              const Left<Failure, SpiritPage>(NetworkFailure('offline')),
+        );
+
+        provider.applyFilter(const SpiritFilter(sort: SpiritSort.strongest));
+        await provider.loadAll();
+
+        expect(ids().length, 4, reason: 'stopped at the failed third page');
+        expect(provider.loadMoreFailure, isA<NetworkFailure>());
+        expect(provider.needsWholeShelf, isTrue);
+
+        stubPaged();
+        await provider.retryLoadMore();
+
+        expect(ids().length, 10, reason: 'one retry loads every page left');
+        expect(provider.needsWholeShelf, isFalse);
       },
     );
 

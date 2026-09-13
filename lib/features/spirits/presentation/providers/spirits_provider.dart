@@ -3,6 +3,7 @@ import 'package:drinkopedia/core/error/failure.dart';
 import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit_category.dart';
+import 'package:drinkopedia/features/spirits/domain/entities/spirit_filter.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit_page.dart';
 import 'package:drinkopedia/features/spirits/domain/usecases/get_spirits_page.dart';
 import 'package:flutter/foundation.dart';
@@ -13,8 +14,10 @@ import 'package:flutter/foundation.dart';
 ///
 /// The catalogue arrives a page at a time: [load] fetches the first page and
 /// [loadMore] each one after, as the list is scrolled. [state] always holds
-/// everything loaded so far, so search, the category filter and taste ordering
-/// work on it unchanged — over what has been loaded, not the whole catalogue.
+/// everything loaded so far, so search, the filter and taste ordering work on
+/// it unchanged — over what has been loaded, not the whole catalogue. The one
+/// exception is a sort other than the catalogue's own, which needs every page
+/// and fetches the rest itself; see [applyFilter].
 class SpiritsProvider extends ChangeNotifier {
   SpiritsProvider({
     required this.getSpiritsPage,
@@ -49,6 +52,10 @@ class SpiritsProvider extends ChangeNotifier {
   bool _isLoadingMore = false;
   bool get isLoadingMore => _isLoadingMore;
 
+  /// The page request in flight, if any, so a second caller can wait on it
+  /// instead of being turned away with nothing to wait for.
+  Future<void>? _pendingPage;
+
   /// Why the last [loadMore] failed, if it did.
   ///
   /// While this is set, [loadMore] stops. Loading is driven by the end of the
@@ -68,14 +75,20 @@ class SpiritsProvider extends ChangeNotifier {
   String _query = '';
   String get query => _query;
 
-  /// The category the catalogue is narrowed to, or null for everything.
+  /// What the shelf is narrowed to and how it is ordered.
   ///
-  /// Single choice on purpose. Unlike the taste intro, which orders and never
-  /// hides, this is a filter: people reach for it to see *only* one thing, and
-  /// a multi-select filter that can quietly combine into an empty grid is a
-  /// worse answer to that than one tap per category.
-  SpiritCategory? _category;
-  SpiritCategory? get category => _category;
+  /// The chip row sets one category at a time; the filter sheet can combine
+  /// several, with strength bands, stories-only and a sort. Unlike the taste
+  /// intro, which orders and never hides, this is a filter: it hides.
+  SpiritFilter _filter = const SpiritFilter();
+  SpiritFilter get filter => _filter;
+
+  /// Whether a sort is waiting on pages that have not loaded yet.
+  ///
+  /// Only the catalogue sort can be shown a page at a time. Any other would
+  /// reshuffle the cards already on screen as each page arrived, so the screen
+  /// waits for the whole shelf instead.
+  bool get needsWholeShelf => _filter.sort != SpiritSort.catalogue && _hasMore;
 
   /// How many loaded spirits fall in each category, in display order.
   ///
@@ -96,14 +109,29 @@ class SpiritsProvider extends ChangeNotifier {
     };
   }
 
-  /// Narrows the catalogue to [category]. Choosing the active one again clears
-  /// it, so a chip toggles the way it looks like it should.
-  void filterBy(SpiritCategory? category) {
-    final SpiritCategory? next = category == _category ? null : category;
-    if (next == _category) return;
-    _category = next;
+  /// Narrows the shelf to [category] alone — a tap on the chip row. Tapping
+  /// the only selected category again clears it, so a chip toggles the way it
+  /// looks like it should.
+  void filterBy(SpiritCategory? category) =>
+      applyFilter(_filter.withOnlyCategory(category));
+
+  /// Replaces the whole filter — what the sheet's Show button does.
+  ///
+  /// A sort other than the catalogue's own needs every page, so applying one
+  /// fetches whatever has not loaded yet.
+  void applyFilter(SpiritFilter next) {
+    if (next == _filter) return;
+    _filter = next;
     notifyListeners();
+    if (needsWholeShelf) loadAll();
   }
+
+  void resetFilter() => applyFilter(const SpiritFilter());
+
+  /// How many loaded spirits [draft] would show under the current search — the
+  /// count on the sheet's Show button, before anything is applied.
+  int countMatching(SpiritFilter draft) =>
+      _searched().where(draft.matches).length;
 
   /// Catalogue after the active search filter, with the categories the user
   /// picked in the taste intro floated to the top of each page.
@@ -116,9 +144,14 @@ class SpiritsProvider extends ChangeNotifier {
   /// it is being read. Floated globally, a picked spirit arriving on page two
   /// would sort above cards already scrolled past and push everything on
   /// screen down mid-read. Per page, a loaded card never moves.
+  ///
+  /// Only under the catalogue sort: a sort the person chose outranks the
+  /// preference they gave once at the start.
   List<Spirit> visibleFor(Set<SpiritCategory> preferred) {
     final List<Spirit> visible = visibleSpirits;
-    if (preferred.isEmpty) return visible;
+    if (preferred.isEmpty || _filter.sort != SpiritSort.catalogue) {
+      return visible;
+    }
 
     final List<Spirit> ordered = List<Spirit>.of(visible);
     // Dart's sort is not stable, so ties are broken on the original index
@@ -137,21 +170,24 @@ class SpiritsProvider extends ChangeNotifier {
     return ordered;
   }
 
-  /// Catalogue after the active category and search filters.
+  /// Catalogue after the search and the filter, in the filter's sort order.
   ///
   /// The two compose — "Liqueur" plus "gin" is Sloe Gin — rather than one
   /// overriding the other.
   List<Spirit> get visibleSpirits {
+    final List<Spirit> searched = _searched();
+    return _filter.isDefault ? searched : _filter.apply(searched);
+  }
+
+  /// Loaded spirits whose name or type contains the search, case-insensitively.
+  List<Spirit> _searched() {
     final List<Spirit>? all = _state.valueOrNull;
     if (all == null) return const <Spirit>[];
 
-    final SpiritCategory? category = _category;
     final String needle = _query.trim().toLowerCase();
-    if (category == null && needle.isEmpty) return all;
+    if (needle.isEmpty) return all;
 
     return all.where((Spirit s) {
-      if (category != null && s.category != category) return false;
-      if (needle.isEmpty) return true;
       return s.name.toLowerCase().contains(needle) ||
           (s.type?.toLowerCase().contains(needle) ?? false);
     }).toList();
@@ -195,13 +231,33 @@ class SpiritsProvider extends ChangeNotifier {
 
   /// Fetches the next page and appends it.
   ///
-  /// Safe to call as often as the screen likes: it does nothing while a page
-  /// is already loading, once everything has loaded, before the first page is
-  /// up, or after a failure until [retryLoadMore].
-  Future<void> loadMore() async {
-    if (!_hasMore || _isLoadingMore || _loadMoreFailure != null) return;
-    if (_state is! SuccessState<List<Spirit>>) return;
+  /// Safe to call as often as the screen likes: it does nothing once
+  /// everything has loaded, before the first page is up, or after a failure
+  /// until [retryLoadMore]. While a page is already loading it starts nothing
+  /// new and returns that page's future, so a caller can wait for it.
+  Future<void> loadMore() {
+    if (_isLoadingMore) return _pendingPage ?? Future<void>.value();
+    if (!_hasMore || _loadMoreFailure != null) return Future<void>.value();
+    if (_state is! SuccessState<List<Spirit>>) return Future<void>.value();
 
+    return _pendingPage = _fetchNextPage().whenComplete(
+      () => _pendingPage = null,
+    );
+  }
+
+  /// Loads every remaining page, one after another, until the catalogue runs
+  /// out, a page fails, or a refresh replaces the list.
+  Future<void> loadAll() async {
+    final int generation = _generation;
+    while (_hasMore &&
+        _loadMoreFailure == null &&
+        generation == _generation &&
+        _state is SuccessState<List<Spirit>>) {
+      await loadMore();
+    }
+  }
+
+  Future<void> _fetchNextPage() async {
     final int generation = _generation;
     _isLoadingMore = true;
     notifyListeners();
@@ -238,10 +294,11 @@ class SpiritsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clears a failed page and tries it again.
+  /// Clears a failed page and tries it again — and, when a sort is waiting
+  /// on the whole shelf, carries on through the rest.
   Future<void> retryLoadMore() {
     _loadMoreFailure = null;
-    return loadMore();
+    return needsWholeShelf ? loadAll() : loadMore();
   }
 
   Future<void> refresh() => load(forceRefresh: true);
