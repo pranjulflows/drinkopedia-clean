@@ -305,8 +305,16 @@
   "@noFilterMatches": {
     "description": "Shown when the whole shelf has loaded and nothing passes the filters"
   },
-  "sortingShelf": "Sorting the whole shelf…",
+  "sortingShelf": "Sorting the whole shelf… {loaded} of {total}",
   "@sortingShelf": {
-    "description": "Shown while every page loads so a chosen sort can be applied across the whole catalogue"
+    "description": "Shown while every page loads so a chosen sort can be applied across the whole catalogue, with how far it has got",
+    "placeholders": {
+      "loaded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
   }
 }

@@ -544,11 +544,14 @@ void main() {
         // page landed, so the rest starts loading straight away.
         expect(provider.needsWholeShelf, isTrue);
         expect(provider.isLoadingMore, isTrue);
+        // What the "sorting the whole shelf" line counts up from.
+        expect(provider.loadedCount, 2);
 
         await provider.loadAll();
 
         expect(provider.hasMore, isFalse);
         expect(provider.needsWholeShelf, isFalse);
+        expect(provider.loadedCount, 10);
         expect(ids().length, 10);
       },
     );

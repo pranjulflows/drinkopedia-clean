@@ -44,6 +44,9 @@ class SpiritsProvider extends ChangeNotifier {
   int? _total;
   int? get total => _total;
 
+  /// How many spirits have loaded so far, before search or filter.
+  int get loadedCount => _items.length;
+
   bool _hasMore = false;
 
   /// Whether pages remain beyond what has loaded.

@@ -177,7 +177,9 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                       ],
                       const SizedBox(height: 14),
                       _CountLabel(
-                        count: visible.length,
+                        // Hidden while a sort waits on the whole shelf: the
+                        // partial count would climb above a row of skeletons.
+                        count: provider.needsWholeShelf ? 0 : visible.length,
                         // "20 of 145" only while browsing unfiltered: under a
                         // filter or search the total would count spirits that
                         // could never appear in this list.
@@ -271,7 +273,12 @@ class _SpiritsBody extends StatelessWidget {
       LoadingState<List<Spirit>>() || SuccessState<List<Spirit>>()
           when provider.needsWholeShelf =>
         provider.loadMoreFailure == null
-            ? _SortingShelf(label: l10n.sortingShelf)
+            ? _SortingShelf(
+                label: l10n.sortingShelf(
+                  provider.loadedCount,
+                  provider.total ?? provider.loadedCount,
+                ),
+              )
             : _MessageSliver(
                 icon: Icons.cloud_off_outlined,
                 title: l10n.loadMoreFailed,
@@ -506,7 +513,8 @@ class _FiltersButton extends StatelessWidget {
 }
 
 /// The wait for a sort that needs every page: skeleton cards under a line
-/// saying why, in the grid's own geometry so nothing jumps when it lands.
+/// saying why and how far it has got — a throttled page can hold it still for
+/// ten seconds — in the grid's own geometry so nothing jumps when it lands.
 class _SortingShelf extends StatelessWidget {
   const _SortingShelf({required this.label});
 

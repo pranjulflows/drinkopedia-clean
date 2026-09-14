@@ -66,5 +66,5 @@
   "showSpiritsSoFar": "{count, plural, =0{Rien de chargé – voir quand même} =1{Voir 1 spiritueux pour l'instant} other{Voir {count} spiritueux pour l'instant}}",
   "resetFilters": "Réinitialiser",
   "noFilterMatches": "Aucun spiritueux ne correspond à ces filtres",
-  "sortingShelf": "Tri de toute l'étagère…"
+  "sortingShelf": "Tri de toute l'étagère… {loaded} sur {total}"
 }
