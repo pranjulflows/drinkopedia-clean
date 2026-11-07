@@ -18,42 +18,32 @@ Run from anywhere (macOS, needs Google Chrome):
 
 from __future__ import annotations
 
-import base64
 import pathlib
 import struct
-import subprocess
-import tempfile
+import sys
 import zlib
 
 HERE = pathlib.Path(__file__).resolve().parent
 RAW = HERE / "raw"
 OUT = HERE.parent
 SHOTS_DIR = OUT / "phone-screenshots"
-FONTS = HERE.parents[2] / "assets" / "fonts"
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
-INK, PAPER, ACID, PINK, BLUE = "#0A0A0A", "#F5F1E8", "#CCFF00", "#FF4FD8", "#2B6BFF"
+# The bottle mark, the palette and the Chrome renderer are shared with the
+# launcher icons, so the store icon and the installed app's icon cannot drift.
+sys.path.insert(0, str(HERE.parents[2] / "tool"))
+from brand_mark import (  # noqa: E402
+    ACID,
+    BLUE,
+    FONT_CSS,
+    INK,
+    PAPER,
+    PINK,
+    mark_svg as bottle_svg,
+    render as render_page,
+)
 
 RAW_W = 1206
 STATUS_BAR_PX = 160
-
-
-def font_face(family: str, file: str) -> str:
-    data = base64.b64encode((FONTS / file).read_bytes()).decode()
-    return (
-        f"@font-face{{font-family:'{family}';"
-        f"src:url(data:font/otf;base64,{data}) format('opentype');}}"
-    )
-
-
-FONT_CSS = "".join(
-    font_face(family, file)
-    for family, file in (
-        ("Rota ExtraBlack", "Rota-ExtraBlack.otf"),
-        ("Rota SemiBold", "Rota-SemiBold.otf"),
-        ("Rota Medium", "Rota-Medium.otf"),
-    )
-)
 
 BASE_CSS = f"""
 {FONT_CSS}
@@ -65,33 +55,6 @@ html,body{{overflow:hidden}}
 .label{{font-family:'Rota SemiBold',sans-serif;text-transform:uppercase;
   letter-spacing:.08em}}
 """
-
-
-# --- the bottle mark, shared by the icon and the feature graphic -------------
-
-def bottle_svg(size: int, *, ground: str | None, label: str = PINK,
-               body: str = PAPER, shadow: str = INK, stroke: str = INK) -> str:
-    """A chunky bottle in the app's card language: paper fill, heavy ink
-    border, hard offset shadow, a sticker label carrying the D."""
-    ground_rect = f'<rect width="512" height="512" fill="{ground}"/>' if ground else ""
-    bottle = (
-        "M222 58 h68 a10 10 0 0 1 10 10 v44 h-88 v-44 a10 10 0 0 1 10 -10 z"
-        " M214 112 h84 v58 c0 18 60 34 60 88 v168 a28 28 0 0 1 -28 28"
-        " h-148 a28 28 0 0 1 -28 -28 v-168 c0 -54 60 -70 60 -88 z"
-    )
-    return f"""
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="{size}" height="{size}">
-  {ground_rect}
-  <g transform="translate(-4 -6)">
-    <path d="{bottle}" transform="translate(22 22)" fill="{shadow}"/>
-    <path d="{bottle}" fill="{body}" stroke="{stroke}" stroke-width="14" stroke-linejoin="round"/>
-    <rect x="178" y="262" width="156" height="148" fill="{label}" stroke="{stroke}" stroke-width="12"/>
-    <text x="257" y="383" text-anchor="middle" fill="{INK}" stroke="{INK}"
-      stroke-width="6" stroke-linejoin="round"
-      style="font-family:'Rota ExtraBlack';font-size:136px">D</text>
-    <rect x="222" y="112" width="68" height="14" fill="{stroke}"/>
-  </g>
-</svg>"""
 
 
 def icon_html() -> str:
@@ -205,22 +168,7 @@ p{{margin-top:30px;font-size:40px;line-height:1.2;color:{sub_colour};opacity:.9}
 
 
 def render(target: pathlib.Path, html: str, width: int, height: int) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    # The page embeds the fonts as base64, so it is built in a scratch
-    # directory and never lands next to the output.
-    with tempfile.TemporaryDirectory() as scratch:
-        page = pathlib.Path(scratch) / "page.html"
-        page.write_text(html)
-        subprocess.run(
-            [
-                CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                "--force-device-scale-factor=1", f"--window-size={width},{height}",
-                "--virtual-time-budget=3000", "--allow-file-access-from-files",
-                f"--screenshot={target}", page.as_uri(),
-            ],
-            check=True,
-            capture_output=True,
-        )
+    render_page(target, html, width, height)
 
 
 def add_alpha_channel(png: pathlib.Path) -> None:
