@@ -1,5 +1,6 @@
 import 'package:drinkopedia/app/theme/app_colors.dart';
 import 'package:drinkopedia/app/theme/app_edges.dart';
+import 'package:drinkopedia/app/theme/app_motion.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
 import 'package:flutter/material.dart';
 
@@ -31,14 +32,35 @@ class HardEdgeButton extends StatelessWidget {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              label.toUpperCase(),
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onPrimary,
-                letterSpacing: 0.5,
+            // A label that changes in place — the filter sheet's live count —
+            // rolls up into the button rather than blinking. Slide only: the
+            // label sits on a hard-edged block, where a cross-fade reads as a
+            // rendering fault.
+            child: ClipRect(
+              child: AnimatedSwitcher(
+                duration: AppMotion.resolve(context, AppMotion.quick),
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                transitionBuilder:
+                    (Widget child, Animation<double> animation) =>
+                        SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 1),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                child: Text(
+                  label.toUpperCase(),
+                  key: ValueKey<String>(label),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onPrimary,
+                    letterSpacing: 0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),

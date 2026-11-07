@@ -7,6 +7,7 @@ import 'package:drinkopedia/l10n/app_localizations.dart';
 import 'package:drinkopedia/routing/app_routes.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_button.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
+import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_select_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -188,7 +189,7 @@ class _TasteStep extends StatelessWidget {
             spacing: 9,
             runSpacing: 12,
             children: SpiritCategory.values.map((SpiritCategory category) {
-              return _CategoryChip(
+              return HardEdgeSelectChip(
                 label: categoryLabel(l10n, category),
                 accent: AppColors.accentForCategory(category),
                 selected: provider.isSelected(category),
@@ -197,50 +198,6 @@ class _TasteStep extends StatelessWidget {
             }).toList(),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// A selectable category. Selection is carried by fill and weight, never by
-/// colour alone.
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
-    required this.label,
-    required this.accent,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-
-  /// The category's own accent, so a filled row of chips is not one flat
-  /// block of colour and each pick stays recognisable.
-  final Color accent;
-
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Semantics(
-      selected: selected,
-      button: true,
-      child: HardEdgePanel(
-        color: selected ? accent : theme.colorScheme.surfaceContainer,
-        shadowOffset: selected ? AppEdges.shadowCompact : Offset.zero,
-        onTap: onTap,
-        padding: const EdgeInsets.fromLTRB(15, 11, 15, 12),
-        child: Text(
-          label.toUpperCase(),
-          style: theme.textTheme.titleMedium?.copyWith(
-            // The accents are identical in both themes, so a selected chip's
-            // label has to stay dark even in dark mode.
-            color: selected ? AppColors.ink : theme.colorScheme.onSurface,
-          ),
-        ),
       ),
     );
   }

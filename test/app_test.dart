@@ -21,6 +21,7 @@ import 'package:drinkopedia/features/spirits/data/datasources/spirit_remote_data
 import 'package:drinkopedia/features/spirits/data/models/spirit_dto.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirit_detail_screen.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirits_screen.dart';
+import 'package:drinkopedia/features/spirits/presentation/widgets/filter_sheet.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card.dart';
 import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
 import 'package:flutter/material.dart';
@@ -528,19 +529,8 @@ void main() {
     expect(find.text('That page does not exist'), findsOneWidget);
   });
 
-  /// Swaps in a catalogue of [count] generated spirits, all rum except the
-  /// ones at [whiskeyAt]. Larger than a page, so the screen has to page.
-  void useLargeCatalogue(int count, {Set<int> whiskeyAt = const <int>{}}) {
-    final Map<String, Map<String, dynamic>> byName =
-        <String, Map<String, dynamic>>{
-          for (int i = 0; i < count; i++)
-            'Spirit ${i.toString().padLeft(2, '0')}': _ingredient(
-              '$i',
-              'Spirit ${i.toString().padLeft(2, '0')}',
-              type: whiskeyAt.contains(i) ? 'Whiskey' : 'Rum',
-              description: 'Story $i.',
-            ),
-        };
+  /// Swaps in [byName] as both the upstream data and the seed list, in order.
+  void useCatalogue(Map<String, Map<String, dynamic>> byName) {
     api = _FakeCocktailDbApi(byName);
     rootBundle.evict(CocktailDbSpiritDataSource.seedAssetPath);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -560,6 +550,20 @@ void main() {
             ).buffer,
           );
         });
+  }
+
+  /// Swaps in a catalogue of [count] generated spirits, all rum except the
+  /// ones at [whiskeyAt]. Larger than a page, so the screen has to page.
+  void useLargeCatalogue(int count, {Set<int> whiskeyAt = const <int>{}}) {
+    useCatalogue(<String, Map<String, dynamic>>{
+      for (int i = 0; i < count; i++)
+        'Spirit ${i.toString().padLeft(2, '0')}': _ingredient(
+          '$i',
+          'Spirit ${i.toString().padLeft(2, '0')}',
+          type: whiskeyAt.contains(i) ? 'Whiskey' : 'Rum',
+          description: 'Story $i.',
+        ),
+    });
   }
 
   /// Phone-shaped, so a page of cards is several screens tall and the next
@@ -671,6 +675,161 @@ void main() {
     await settle(tester);
 
     expect(find.byType(SpiritCard), findsNWidgets(2));
+  });
+
+  group('filter sheet', () {
+    /// Five spirits that split every way the sheet can cut them.
+    Map<String, Map<String, dynamic>> shelf() => <String, Map<String, dynamic>>{
+      'Gin': _ingredient(
+        '11',
+        'Gin',
+        type: 'Gin',
+        abv: '40',
+        description: 'Juniper.',
+      ),
+      'Amaretto': _ingredient(
+        '12',
+        'Amaretto',
+        type: 'Liqueur',
+        abv: '28',
+        description: 'Almond.',
+      ),
+      // No ABV and no story upstream, like the real Tuaca.
+      'Tuaca': _ingredient('13', 'Tuaca', type: 'Liqueur'),
+      'Ale': _ingredient(
+        '14',
+        'Ale',
+        type: 'Beer',
+        abv: '4',
+        description: 'Top-fermented.',
+      ),
+      'Bourbon': _ingredient(
+        '15',
+        'Bourbon',
+        type: 'Whiskey',
+        description: 'Corn.',
+      ),
+    };
+
+    Finder inSheet(Finder finder) =>
+        find.descendant(of: find.byType(FilterSheet), matching: finder);
+
+    /// Long enough for the sheet's slide and its staggered sections to land.
+    Future<void> settleSheet(WidgetTester tester) async {
+      for (int i = 0; i < 16; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    /// Taps [text] in the sheet, scrolling it into view first: the sheet
+    /// scrolls under its pinned Show button, and a chip hidden beneath the
+    /// button would otherwise be a tap on Show.
+    Future<void> tapInSheet(WidgetTester tester, String text) async {
+      final Finder target = inSheet(find.text(text));
+      await tester.ensureVisible(target);
+      await tester.pump();
+      await tester.tap(target);
+      await tester.pump();
+    }
+
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Filters'));
+      await settleSheet(tester);
+      expect(find.byType(FilterSheet), findsOneWidget);
+    }
+
+    testWidgets('combining filters narrows the shelf and badges the button', (
+      WidgetTester tester,
+    ) async {
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+      expect(find.byType(SpiritCard), findsNWidgets(5));
+
+      await openSheet(tester);
+      await tapInSheet(tester, 'LIQUEUR');
+      await tapInSheet(tester, 'GIN');
+      await tapInSheet(tester, 'MEDIUM · 20–37%');
+      await settleSheet(tester);
+
+      // Liqueur or gin, at 20–37%: only Amaretto. Gin is too strong, and
+      // Tuaca's ABV is unknown, so it cannot be placed in a band at all.
+      final Finder show = inSheet(find.text('SHOW 1 SPIRIT'));
+      expect(show, findsOneWidget);
+      await tester.tap(show);
+      await settleSheet(tester);
+
+      expect(find.byType(FilterSheet), findsNothing);
+      expect(find.byType(SpiritCard), findsOneWidget);
+      expect(findCard('Amaretto'), findsWidgets);
+      expect(find.byTooltip('Filters, 3 active'), findsOneWidget);
+    });
+
+    testWidgets('dismissing the sheet drops the draft', (
+      WidgetTester tester,
+    ) async {
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+
+      await openSheet(tester);
+      await tapInSheet(tester, 'LIQUEUR');
+      await settleSheet(tester);
+      // The dimmed catalogue above the sheet closes it without applying.
+      await tester.tapAt(const Offset(20, 20));
+      await settleSheet(tester);
+
+      expect(find.byType(FilterSheet), findsNothing);
+      expect(find.byType(SpiritCard), findsNWidgets(5));
+      expect(find.byTooltip('Filters'), findsOneWidget);
+    });
+
+    testWidgets('a filter that matches nothing offers a way back out', (
+      WidgetTester tester,
+    ) async {
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+
+      await openSheet(tester);
+      await tapInSheet(tester, 'BEER & CIDER');
+      await tapInSheet(tester, 'STRONG · 37.5%+');
+      await settleSheet(tester);
+      await tapInSheet(tester, 'NO SPIRITS MATCH');
+      await settleSheet(tester);
+
+      // The filters were picked in a sheet that is now closed, so the reset
+      // has to be on the empty result itself.
+      expect(findLabel('No spirits match these filters'), findsOneWidget);
+      await tester.tap(findLabel('Reset'));
+      await settleSheet(tester);
+
+      expect(find.byType(SpiritCard), findsNWidgets(5));
+      expect(find.byTooltip('Filters'), findsOneWidget);
+    });
+
+    testWidgets('with reduced motion the sheet is simply there', (
+      WidgetTester tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(inSheet(find.text('STRENGTH')), findsOneWidget);
+      // Already where it ends up: nothing is still sliding in.
+      final double top = tester.getTopLeft(find.byType(FilterSheet)).dy;
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.getTopLeft(find.byType(FilterSheet)).dy, top);
+    });
   });
 
   testWidgets('search filters the catalogue', (WidgetTester tester) async {

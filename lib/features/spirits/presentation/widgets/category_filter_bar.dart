@@ -14,6 +14,9 @@ import 'package:flutter/material.dart';
 ///
 /// Each chip carries its category's count, so "Liqueur 15" and "Gin 1" say how
 /// much is behind them before the tap rather than after.
+///
+/// A tap picks one category; the filter sheet can pick several, and every one
+/// of them is lit here so the row never misstates what the grid is showing.
 class CategoryFilterBar extends StatelessWidget {
   const CategoryFilterBar({
     required this.counts,
@@ -33,8 +36,8 @@ class CategoryFilterBar extends StatelessWidget {
   /// could ever be filtered to. Its chip shows no count until it has one.
   final bool showAll;
 
-  /// The active category, or null when showing everything.
-  final SpiritCategory? selected;
+  /// The active categories; empty when showing everything.
+  final Set<SpiritCategory> selected;
 
   /// Called with the tapped category, or null for "All".
   final ValueChanged<SpiritCategory?> onSelected;
@@ -59,7 +62,7 @@ class CategoryFilterBar extends StatelessWidget {
           _FilterChip(
             label: l10n.filterAll,
             count: total,
-            selected: selected == null,
+            selected: selected.isEmpty,
             // Neutral rather than an accent: "All" is the absence of a filter,
             // and giving it a category's colour would make it read as one.
             accent: Theme.of(context).colorScheme.primary,
@@ -70,7 +73,7 @@ class CategoryFilterBar extends StatelessWidget {
             _FilterChip(
               label: categoryLabel(l10n, category),
               count: counts[category],
-              selected: selected == category,
+              selected: selected.contains(category),
               accent: AppColors.accentForCategory(category),
               // The accents are identical in both themes, so their label has to
               // stay dark even in dark mode.

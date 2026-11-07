@@ -1,9 +1,11 @@
+import 'package:drinkopedia/app/theme/app_colors.dart';
 import 'package:drinkopedia/app/theme/app_edges.dart';
 import 'package:drinkopedia/core/presentation/view_state.dart';
 import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/features/spirits/domain/entities/spirit.dart';
 import 'package:drinkopedia/features/spirits/presentation/providers/spirits_provider.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/category_filter_bar.dart';
+import 'package:drinkopedia/features/spirits/presentation/widgets/filter_sheet.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card_skeleton.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_message.dart';
@@ -138,11 +140,26 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      HardEdgeSearchField(
-                        hintText: l10n.searchSpirits,
-                        onChanged: provider.search,
-                        clearTooltip: l10n.clearSearch,
-                        enabled: canSearch,
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: HardEdgeSearchField(
+                              hintText: l10n.searchSpirits,
+                              onChanged: provider.search,
+                              clearTooltip: l10n.clearSearch,
+                              enabled: canSearch,
+                            ),
+                          ),
+                          // Only once there is a shelf to filter, like search.
+                          if (canSearch) ...<Widget>[
+                            const SizedBox(width: 12),
+                            _FiltersButton(
+                              activeCount: provider.filter.activeCount,
+                              onPressed: () =>
+                                  showFilterSheet(context, provider),
+                            ),
+                          ],
+                        ],
                       ),
                       // Hidden rather than disabled when nothing loaded: a row
                       // of chips all counting zero is noise, not a control.
@@ -150,7 +167,7 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                         const SizedBox(height: 14),
                         CategoryFilterBar(
                           counts: provider.categoryCounts,
-                          selected: provider.category,
+                          selected: provider.filter.categories,
                           onSelected: provider.filterBy,
                           // Every category, not only those loaded so far:
                           // otherwise nothing further down the catalogue could
@@ -160,13 +177,15 @@ class _SpiritsScreenState extends State<SpiritsScreen> {
                       ],
                       const SizedBox(height: 14),
                       _CountLabel(
-                        count: visible.length,
+                        // Hidden while a sort waits on the whole shelf: the
+                        // partial count would climb above a row of skeletons.
+                        count: provider.needsWholeShelf ? 0 : visible.length,
                         // "20 of 145" only while browsing unfiltered: under a
                         // filter or search the total would count spirits that
                         // could never appear in this list.
                         total:
                             provider.hasMore &&
-                                provider.category == null &&
+                                provider.filter.isDefault &&
                                 provider.query.trim().isEmpty
                             ? provider.total
                             : null,
@@ -249,6 +268,23 @@ class _SpiritsBody extends StatelessWidget {
         title: l10n.nothingHere,
         message: message,
       ),
+      // A chosen sort waits for the whole shelf rather than reshuffling the
+      // cards on screen as each page lands.
+      LoadingState<List<Spirit>>() || SuccessState<List<Spirit>>()
+          when provider.needsWholeShelf =>
+        provider.loadMoreFailure == null
+            ? _SortingShelf(
+                label: l10n.sortingShelf(
+                  provider.loadedCount,
+                  provider.total ?? provider.loadedCount,
+                ),
+              )
+            : _MessageSliver(
+                icon: Icons.cloud_off_outlined,
+                title: l10n.loadMoreFailed,
+                onRetry: provider.retryLoadMore,
+                retryLabel: l10n.retry,
+              ),
       LoadingState<List<Spirit>>() ||
       SuccessState<List<Spirit>>() => _SpiritsGrid(
         spirits: visible,
@@ -257,31 +293,46 @@ class _SpiritsBody extends StatelessWidget {
         // pages remain, an empty filtered grid is still searching — the footer
         // shows it loading — and saying "no matches" would be premature.
         emptyLabel: _isFiltering(provider) && !provider.hasMore
-            ? l10n.noMatches
+            ? (provider.filter.narrows ? l10n.noFilterMatches : l10n.noMatches)
             : null,
+        // Filters were chosen in a sheet that is now closed, so the way back
+        // out has to be on the empty result itself.
+        onEmptyAction: provider.filter.narrows ? provider.resetFilter : null,
+        emptyActionLabel: l10n.resetFilters,
       ),
     };
   }
 }
 
+/// Whether anything is being hidden — by search or by the filter. A sort alone
+/// hides nothing.
 bool _isFiltering(SpiritsProvider provider) =>
-    provider.category != null || provider.query.trim().isNotEmpty;
+    provider.filter.narrows || provider.query.trim().isNotEmpty;
 
 class _SpiritsGrid extends StatelessWidget {
   const _SpiritsGrid({
     required this.spirits,
     required this.provider,
     this.emptyLabel,
+    this.onEmptyAction,
+    this.emptyActionLabel,
   });
 
   final List<Spirit> spirits;
   final SpiritsProvider provider;
   final String? emptyLabel;
+  final VoidCallback? onEmptyAction;
+  final String? emptyActionLabel;
 
   @override
   Widget build(BuildContext context) {
     if (spirits.isEmpty && emptyLabel != null) {
-      return _MessageSliver(icon: Icons.search_off, title: emptyLabel!);
+      return _MessageSliver(
+        icon: Icons.search_off,
+        title: emptyLabel!,
+        onRetry: onEmptyAction,
+        retryLabel: emptyActionLabel,
+      );
     }
 
     final NavigationService navigator = context.read<NavigationService>();
@@ -403,6 +454,91 @@ class _LoadMoreFooter extends StatelessWidget {
     }
 
     return const SliverToBoxAdapter(child: SizedBox.shrink());
+  }
+}
+
+/// Opens the filter sheet. Shows how many filters are on, so a narrowed shelf
+/// never passes for the whole one.
+class _FiltersButton extends StatelessWidget {
+  const _FiltersButton({required this.activeCount, required this.onPressed});
+
+  final int activeCount;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final bool active = activeCount > 0;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        HardEdgeIconButton(
+          icon: Icons.tune,
+          onPressed: onPressed,
+          tooltip: active ? l10n.filtersActive(activeCount) : l10n.filters,
+          // Hot pink while filters are on, so it reads as a state and not only
+          // as a way in.
+          background: active
+              ? AppColors.hotPink
+              : theme.colorScheme.surfaceContainer,
+        ),
+        if (active)
+          Positioned(
+            top: -8,
+            right: -8,
+            child: ExcludeSemantics(
+              // The tooltip already says how many; this is the visual echo.
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 22),
+                height: 22,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                color: AppColors.ink,
+                child: Text(
+                  '$activeCount',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.acid,
+                    fontSize: 12,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The wait for a sort that needs every page: skeleton cards under a line
+/// saying why and how far it has got — a throttled page can hold it still for
+/// ten seconds — in the grid's own geometry so nothing jumps when it lands.
+class _SortingShelf extends StatelessWidget {
+  const _SortingShelf({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SliverMainAxisGroup(
+      slivers: <Widget>[
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Text(
+              label.toUpperCase(),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+        const _SkeletonGrid(),
+      ],
+    );
   }
 }
 
