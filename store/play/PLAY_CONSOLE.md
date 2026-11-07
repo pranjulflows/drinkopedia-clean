@@ -17,7 +17,7 @@ are done.
 | 3 | **Credit Wikipedia in the app** | Many stories come from Wikipedia under CC BY-SA, which requires visible attribution where the text is shown, such as a line under "The Story". Crediting it in the store description alone is not enough. |
 | 4 | **Create the upload key** (once, and keep it safe) | Play rejects debug-signed bundles. See section 7. |
 | 5 | **Host the privacy policy** | Required for every app. See section 5. |
-| 6 | Replace the launcher icon | The installed app still shows Flutter's default logo while the store icon is the bottle mark. Play expects the two to match. |
+| 6 | ~~Replace the launcher icon~~ — done | The installed app now carries the same bottle mark as the store icon, generated from one source by `tool/generate_launcher_icons.py`. |
 | 7 | *(optional)* Android Studio → SDK Manager → SDK Tools → **Android SDK Command-line Tools** | Silences Flutter's "failed to strip debug symbols" message at the end of `flutter build appbundle`. The bundle is fine either way. |
 
 ## 1. Developer account
