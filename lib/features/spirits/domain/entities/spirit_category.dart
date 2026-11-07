@@ -46,7 +46,7 @@ enum SpiritCategory {
   }
 }
 
-/// Every raw value observed across the 145-name seed catalogue, lowercased.
+/// Every raw value observed across the seed catalogue, lowercased.
 ///
 /// Worth re-surveying whenever the seed grows: an unmapped type does not fail,
 /// it quietly lands in [SpiritCategory.other], which is how 23 liqueurs would
@@ -64,8 +64,8 @@ const Map<String, SpiritCategory> _byRawType = <String, SpiritCategory>{
   'brandy': SpiritCategory.brandy,
   'liqueur': SpiritCategory.liqueur,
   'liquor': SpiritCategory.liqueur,
-  // An upstream misspelling, and not a rare one: 23 of the 145 catalogue
-  // entries carry it, Campari and Calvados among them. Unmapped, the Liqueur
+  // An upstream misspelling, and not a rare one: 23 catalogue entries carry
+  // it, Campari and Calvados among them. Unmapped, the Liqueur
   // filter silently loses all of them to "Everything else".
   'liquer': SpiritCategory.liqueur,
   'schnapps': SpiritCategory.liqueur,
