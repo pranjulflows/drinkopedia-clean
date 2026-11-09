@@ -29,7 +29,8 @@ on:
         options: [internal, alpha, beta]
 
 permissions:
-  contents: read
+  # write, because a successful release records its version back on main.
+  contents: write
 
 # One release at a time: two uploads racing would fight over version codes.
 concurrency:
@@ -84,13 +85,19 @@ jobs:
           echo "$name" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
             echo "::error::Version must look like 1.0.1, got '$name'"; exit 1; }
 
-          # Play needs a version code that only ever increases, and refuses a
-          # code it has already seen. Deriving it from the version means the
-          # same release can never be uploaded twice by accident, and that
-          # re-running a failed job is safe up until the upload succeeds.
-          IFS=. read -r major minor patch <<< "$name"
+          # The build number is whatever pubspec carries, plus one. Play
+          # refuses a build number it has already seen, so this has to rise
+          # every time — which is why a successful release writes the new
+          # number back to main at the end of this job. If that write is ever
+          # skipped, the next release would reuse the number and be rejected.
+          current=$(grep -m1 '^version:' pubspec.yaml | tr -d '[:space:]')
+          current="${current##*+}"
+          echo "$current" | grep -Eq '^[0-9]+$' || {
+            echo "::error::No build number in pubspec.yaml's version line"; exit 1; }
+
           echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "code=$((major * 10000 + minor * 100 + patch))" >> "$GITHUB_OUTPUT"
+          echo "code=$((current + 1))" >> "$GITHUB_OUTPUT"
+          echo "Releasing $name, build $((current + 1)) (was $current)"
 
       - name: Check the commit is on main
         run: |
@@ -144,32 +151,65 @@ jobs:
             "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" "$keystore" \
             > android/key.properties
 
-      - name: Build the app bundle
+      - name: Build the app bundle and the APK
         env:
           COCKTAILDB_KEY: ${{ secrets.COCKTAILDB_KEY }}
+          BUILD_NAME: ${{ steps.version.outputs.name }}
+          BUILD_CODE: ${{ steps.version.outputs.code }}
         run: |
-          .github/scripts/with-native-asset-retry.sh \
-            flutter build appbundle --release \
-            --build-name="${{ steps.version.outputs.name }}" \
-            --build-number="${{ steps.version.outputs.code }}" \
-            --dart-define=COCKTAILDB_KEY="$COCKTAILDB_KEY"
+          set -euo pipefail
+          # The bundle is what Play takes. The APK is for installing directly
+          # — a tester on a device, or a quick check without Play in the way.
+          for target in appbundle apk; do
+            .github/scripts/with-native-asset-retry.sh \
+              flutter build "$target" --release \
+                --build-name="$BUILD_NAME" \
+                --build-number="$BUILD_CODE" \
+                --dart-define=COCKTAILDB_KEY="$COCKTAILDB_KEY"
+          done
 
-      - name: Confirm it is signed with the upload key, not the debug key
+      - name: Confirm both are signed with the upload key, not the debug key
         run: |
           set -euo pipefail
           bundle=build/app/outputs/bundle/release/app-release.aab
-          owner=$(keytool -printcert -jarfile "$bundle" | sed -n 's/^Owner: //p' | head -1)
-          echo "Signed by: $owner"
-          # Play rejects a debug-signed upload; catching it here says why.
-          case "$owner" in
-            *"Android Debug"*|"") echo "::error::Debug-signed or unsigned"; exit 1 ;;
-          esac
+          apk=build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Keep the bundle with the run
+          # The two need different tools. The bundle carries a JAR signature,
+          # which keytool reads. The APK does not: with minSdk 24, Gradle
+          # signs it with APK Signature Scheme v2 and leaves v1 off, so
+          # keytool prints nothing at all for it — which would reject a
+          # perfectly well-signed APK and fail every release. apksigner is the
+          # tool that understands v2.
+          apksigner=$(ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner not found — refusing to upload an APK whose signature cannot be checked"
+            exit 1
+          fi
+
+          bundle_owner=$(keytool -printcert -jarfile "$bundle" | sed -n 's/^Owner: //p' | head -1)
+          # apksigner has printed this line as both "Signer #1 certificate DN"
+          # and "V2 Signer: certificate DN" across build-tools versions.
+          "$apksigner" verify "$apk"
+          apk_owner=$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate DN: //p' | head -1)
+
+          echo "bundle signed by: $bundle_owner"
+          echo "APK signed by:    $apk_owner"
+
+          # Play rejects a debug-signed upload; catching it here says why.
+          for owner in "$bundle_owner" "$apk_owner"; do
+            case "$owner" in
+              *"Android Debug"*|"")
+                echo "::error::An artifact is debug-signed or unsigned"; exit 1 ;;
+            esac
+          done
+
+      - name: Keep the bundle and the APK with the run
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-${{ steps.version.outputs.name }}
-          path: build/app/outputs/bundle/release/app-release.aab
+          name: drinkopedia-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+          path: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 90
 
@@ -178,12 +218,45 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.drinkopedia.app
+          # The bundle only. Play requires an app bundle for apps published
+          # since 2021 and will not take the APK, which is here for installing
+          # directly instead.
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           # Internal testing only. Promoting to production stays a human
           # decision in Play Console, and production needs the closed-test
           # requirement met first anyway.
           track: ${{ inputs.track || 'internal' }}
           status: completed
+
+      - name: Record the released version on main
+        env:
+          BUILD_NAME: ${{ steps.version.outputs.name }}
+          BUILD_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          set -euo pipefail
+          # Last, and only once the upload has succeeded: the build number is
+          # spent the moment Play accepts it, and recording one that never
+          # shipped would skip a number for no reason.
+          #
+          # This is the one place anything is pushed to a protected-by-
+          # convention branch. [skip ci] keeps it from starting a second run,
+          # and the release workflow itself only answers to tags, so this
+          # cannot loop.
+          git fetch --no-tags origin main
+          git switch --force-create main origin/main
+
+          sed -i -E "s/^version: .*/version: ${BUILD_NAME}+${BUILD_CODE}/" pubspec.yaml
+          if git diff --quiet -- pubspec.yaml; then
+            echo "pubspec.yaml already reads ${BUILD_NAME}+${BUILD_CODE}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: release v${BUILD_NAME} (build ${BUILD_CODE}) [skip ci]" -- pubspec.yaml
+          # A failure here must be loud: without it the next release reuses
+          # this build number and Play rejects the upload.
+          git push origin main
 
       - name: Remove the signing material
         if: always()
