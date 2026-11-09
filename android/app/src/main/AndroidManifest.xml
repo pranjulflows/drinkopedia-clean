@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter only grants this in the debug and profile manifests. Without it
+         here a release build cannot reach TheCocktailDB, and a fresh install
+         shows nothing but an error. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
    <application
-        android:label="drinkopedia"
+        android:label="Drinkopedia"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

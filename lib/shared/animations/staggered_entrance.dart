@@ -1,18 +1,28 @@
+import 'dart:async';
+
 import 'package:drinkopedia/app/theme/app_motion.dart';
 import 'package:flutter/material.dart';
 
-/// Fades and lifts a child into place, offset by its position in a list.
+/// Lifts a child into place, offset by its position in a list.
 ///
 /// Collapses to a plain child when the platform asks for reduced motion.
 class StaggeredEntrance extends StatefulWidget {
   const StaggeredEntrance({
     required this.index,
     required this.child,
+    this.fade = true,
     super.key,
   });
 
   final int index;
   final Widget child;
+
+  /// Whether the child also fades in.
+  ///
+  /// Off for anything drawn with a hard border and an offset shadow: a
+  /// half-opaque border reads as a rendering fault rather than as motion, so
+  /// those items only slide.
+  final bool fade;
 
   @override
   State<StaggeredEntrance> createState() => _StaggeredEntranceState();
@@ -26,6 +36,10 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
   );
 
   bool _scheduled = false;
+
+  /// The pending start, cancelled on dispose. A card scrolled away or rebuilt
+  /// before its turn otherwise leaves a live timer behind it.
+  Timer? _startTimer;
 
   @override
   void didChangeDependencies() {
@@ -43,13 +57,14 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
     final Duration delay =
         AppMotion.stagger * widget.index.clamp(0, cappedSteps);
 
-    Future<void>.delayed(delay, () {
+    _startTimer = Timer(delay, () {
       if (mounted) _controller.forward();
     });
   }
 
   @override
   void dispose() {
+    _startTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -60,15 +75,15 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
       parent: _controller,
       curve: AppMotion.enter,
     );
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.06),
-          end: Offset.zero,
-        ).animate(curved),
-        child: widget.child,
-      ),
+    final Widget slide = SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.06),
+        end: Offset.zero,
+      ).animate(curved),
+      child: widget.child,
     );
+
+    if (!widget.fade) return slide;
+    return FadeTransition(opacity: curved, child: slide);
   }
 }

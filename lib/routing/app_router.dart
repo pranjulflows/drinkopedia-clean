@@ -1,3 +1,4 @@
+import 'package:drinkopedia/features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'package:drinkopedia/routing/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -5,11 +6,36 @@ import 'package:go_router/go_router.dart';
 /// Builds the application router.
 ///
 /// Held for the lifetime of the app — rebuilding a [GoRouter] resets the
-/// navigation stack, so it must never be constructed inside a `build`.
-GoRouter buildAppRouter({String? initialLocation}) {
+/// navigation stack, so it must never be constructed inside a `build`. Reach it
+/// through `RouterService` from the injector rather than calling this directly.
+///
+/// [onboarding] gates every route behind the taste intro until that has been
+/// answered. It is read, not watched: the app resolves the preference before
+/// the first route is ever built, so the guard is already accurate by the time
+/// it runs.
+GoRouter buildAppRouter({
+  required OnboardingProvider onboarding,
+  String? initialLocation,
+}) {
   return GoRouter(
-    initialLocation: initialLocation ?? SpiritsRoute.path,
+    initialLocation: initialLocation ?? SplashRoute.path,
     routes: $appRoutes,
+    redirect: (BuildContext context, GoRouterState state) {
+      // The splash is what resolves the preference the guard below depends on,
+      // so it always passes.
+      if (state.matchedLocation == SplashRoute.path) return null;
+
+      // Nothing has read the preference yet — which happens when a deep link
+      // opens the app directly. Send it through the splash, carrying the
+      // requested location so the link is deferred rather than swallowed.
+      if (!onboarding.isResolved) {
+        return SplashRoute(next: state.uri.toString()).location;
+      }
+
+      if (onboarding.isComplete) return null;
+      if (state.matchedLocation == OnboardingRoute.path) return null;
+      return OnboardingRoute.path;
+    },
     errorBuilder: (BuildContext context, GoRouterState state) =>
         _RouteErrorScreen(location: state.uri.toString()),
   );

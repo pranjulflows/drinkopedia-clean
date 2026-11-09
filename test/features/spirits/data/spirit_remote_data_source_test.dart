@@ -61,7 +61,16 @@ void main() {
     );
   });
 
-  test('hydrates the catalogue from the seed list', () async {
+  test('reads the seed list in order', () async {
+    final CocktailDbSpiritDataSource dataSource = CocktailDbSpiritDataSource(
+      api: api,
+      assetBundle: _SeedBundle(<String>['Vodka', 'Gin', 'Rum']),
+    );
+
+    expect(await dataSource.loadSeedNames(), <String>['Vodka', 'Gin', 'Rum']);
+  });
+
+  test('hydrates exactly the names it is given', () async {
     when(() => api.searchIngredient(any())).thenAnswer((Invocation call) async {
       final String name = call.positionalArguments.first as String;
       return _response(<Map<String, dynamic>>[
@@ -74,19 +83,22 @@ void main() {
       assetBundle: _SeedBundle(<String>['Vodka', 'Gin', 'Rum']),
     );
 
-    final List<SpiritDto> result = await dataSource.fetchCatalogue();
-
-    expect(result.map((SpiritDto d) => d.name), <String>[
-      'Vodka',
+    final Hydration result = await dataSource.fetchByNames(<String>[
       'Gin',
       'Rum',
     ]);
+
+    expect(result.spirits.map((SpiritDto d) => d.name), <String>['Gin', 'Rum']);
+    expect(result.failed, isEmpty);
+    // A page asks for its own names and nothing else.
+    verifyNever(() => api.searchIngredient('Vodka'));
   });
 
-  test('one failing name does not sink the whole catalogue', () async {
+  test('a failing name is reported, and does not sink the page', () async {
+    final Exception throttled = Exception('429');
     when(() => api.searchIngredient(any())).thenAnswer((Invocation call) async {
       final String name = call.positionalArguments.first as String;
-      if (name == 'Grappa') throw Exception('upstream removed this entry');
+      if (name == 'Grappa') throw throttled;
       return _response(<Map<String, dynamic>>[
         <String, dynamic>{'idIngredient': name, 'strIngredient': name},
       ]);
@@ -94,11 +106,56 @@ void main() {
 
     final CocktailDbSpiritDataSource dataSource = CocktailDbSpiritDataSource(
       api: api,
-      assetBundle: _SeedBundle(<String>['Vodka', 'Grappa', 'Rum']),
+      assetBundle: _SeedBundle(<String>[]),
     );
 
-    final List<SpiritDto> result = await dataSource.fetchCatalogue();
+    final Hydration result = await dataSource.fetchByNames(<String>[
+      'Vodka',
+      'Grappa',
+      'Rum',
+    ]);
 
-    expect(result.map((SpiritDto d) => d.name), <String>['Vodka', 'Rum']);
+    expect(result.spirits.map((SpiritDto d) => d.name), <String>[
+      'Vodka',
+      'Rum',
+    ]);
+    // Reported, not dropped: a failed request says nothing about whether
+    // Grappa exists.
+    expect(result.failed, <String>['Grappa']);
+    expect(result.error, same(throttled));
+  });
+
+  test('a name upstream does not know is absent, not failed', () async {
+    when(
+      () => api.searchIngredient(any()),
+    ).thenAnswer((_) async => _response(null));
+
+    final CocktailDbSpiritDataSource dataSource = CocktailDbSpiritDataSource(
+      api: api,
+      assetBundle: _SeedBundle(<String>[]),
+    );
+
+    final Hydration result = await dataSource.fetchByNames(<String>['Soju']);
+
+    expect(result.spirits, isEmpty);
+    expect(result.failed, isEmpty);
+  });
+
+  test('looks a single spirit up by id', () async {
+    when(() => api.lookupIngredient('42')).thenAnswer(
+      (_) async => _response(<Map<String, dynamic>>[
+        <String, dynamic>{'idIngredient': '42', 'strIngredient': 'Mezcal'},
+      ]),
+    );
+
+    final CocktailDbSpiritDataSource dataSource = CocktailDbSpiritDataSource(
+      api: api,
+      assetBundle: _SeedBundle(<String>[]),
+    );
+
+    final SpiritDto? dto = await dataSource.fetchById('42');
+
+    expect(dto?.name, 'Mezcal');
+    verifyNever(() => api.searchIngredient(any()));
   });
 }

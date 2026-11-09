@@ -6,17 +6,26 @@
 // together.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:drinkopedia/app/app.dart';
+import 'package:drinkopedia/app/splash_screen.dart';
 import 'package:drinkopedia/core/database/app_database.dart';
+import 'package:drinkopedia/core/database/daos/preferences_dao.dart';
+import 'package:drinkopedia/features/onboarding/data/repositories/taste_repository_impl.dart';
+import 'package:drinkopedia/features/onboarding/domain/entities/taste_preference.dart';
+import 'package:drinkopedia/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/cocktail_db_api.dart';
 import 'package:drinkopedia/features/spirits/data/datasources/spirit_remote_data_source.dart';
 import 'package:drinkopedia/features/spirits/data/models/spirit_dto.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirit_detail_screen.dart';
 import 'package:drinkopedia/features/spirits/presentation/screens/spirits_screen.dart';
+import 'package:drinkopedia/features/spirits/presentation/widgets/filter_sheet.dart';
 import 'package:drinkopedia/features/spirits/presentation/widgets/spirit_card.dart';
+import 'package:drinkopedia/shared/widgets/hard_edge/hard_edge_panel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,6 +35,9 @@ class _FakeCocktailDbApi implements CocktailDbApi {
 
   final Map<String, Map<String, dynamic>> byName;
   int requestCount = 0;
+
+  /// Names upstream is refusing for now, the way a 429 does.
+  final Set<String> throttled = <String>{};
 
   IngredientResponse _lookup(bool Function(Map<String, dynamic>) matches) {
     requestCount++;
@@ -37,12 +49,26 @@ class _FakeCocktailDbApi implements CocktailDbApi {
   }
 
   @override
-  Future<IngredientResponse> searchIngredient(String name) async =>
-      _lookup((Map<String, dynamic> r) => r['strIngredient'] == name);
+  Future<IngredientResponse> searchIngredient(String name) async {
+    if (throttled.contains(name)) throw Exception('429 Too Many Requests');
+    return _lookup((Map<String, dynamic> r) => r['strIngredient'] == name);
+  }
 
   @override
   Future<IngredientResponse> lookupIngredient(String id) async =>
       _lookup((Map<String, dynamic> r) => r['idIngredient'] == id);
+}
+
+/// Always fails, so the catalogue ends up with an empty cache and no network —
+/// the one state in which there is nothing at all to search.
+class _DeadCocktailDbApi implements CocktailDbApi {
+  @override
+  Future<IngredientResponse> searchIngredient(String name) async =>
+      throw Exception('offline');
+
+  @override
+  Future<IngredientResponse> lookupIngredient(String id) async =>
+      throw Exception('offline');
 }
 
 Map<String, dynamic> _ingredient(
@@ -60,6 +86,52 @@ Map<String, dynamic> _ingredient(
   'strAlcohol': 'Yes',
 };
 
+/// Matches a [Text] by its content, ignoring case.
+///
+/// Names and headings are set in caps as a styling decision, and Flutter has no
+/// text-transform — the string itself is uppercased at the call site. Asserting
+/// on exact case would tie these tests to the current visual direction, which
+/// is not what they are here to catch.
+/// Declines every image, so cards render their fallback artwork.
+///
+/// A real cache manager is wrong here twice over: the default keeps its index
+/// in sqflite, which has no implementation under the test binding, and even a
+/// non-storing one schedules a cleanup timer ten seconds out that outlives the
+/// test. Nothing these tests assert depends on artwork, so none is loaded.
+class _NoImageCache implements BaseCacheManager {
+  @override
+  Stream<FileResponse> getFileStream(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+  }) => Stream<FileResponse>.error(
+    const HttpExceptionWithStatus(404, 'Images are not loaded in tests'),
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    'Images are not loaded in tests: ${invocation.memberName}',
+  );
+}
+
+final _NoImageCache _noDiskImageCache = _NoImageCache();
+
+Finder findLabel(String text) => find.byWidgetPredicate(
+  (Widget widget) =>
+      widget is Text &&
+      (widget.data ?? '').toLowerCase().contains(text.toLowerCase()),
+  description: 'Text containing "$text" (case-insensitive)',
+);
+
+/// A spirit's card in the catalogue grid, found by the name on it.
+///
+/// Scoped to [SpiritCard] because a name is not unique on screen: the category
+/// filter carries chips such as "Vodka" too, and a bare text finder picks
+/// whichever comes first in the tree — tapping a filter instead of a card.
+Finder findCard(String name) =>
+    find.descendant(of: find.byType(SpiritCard), matching: findLabel(name));
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -70,7 +142,18 @@ void main() {
           'Vodka',
           type: 'Vodka',
           abv: '40',
-          description: 'Vodka is a distilled beverage from Eastern Europe.',
+          // Long enough that the detail screen genuinely scrolls: a one-line
+          // story leaves the 300pt header nothing to collapse into, and any
+          // test that drags it would pass without moving anything.
+          description:
+              'Vodka is a distilled beverage from Eastern Europe. It is '
+              'composed primarily of water and ethanol, sometimes with traces '
+              'of impurities and flavourings. Traditionally it is made by '
+              'distilling liquid from fermented cereal grains, and some '
+              'modern brands use fruits, honey, or maple sap as the base. '
+              'Since the 1890s, the standard Polish, Russian, Belarusian, '
+              'Ukrainian, Estonian, Latvian, Lithuanian and Czech vodkas are '
+              'forty percent alcohol by volume.',
         ),
         // No description upstream — exercises the graceful-degradation path.
         'Mezcal': _ingredient('2', 'Mezcal', type: 'Spirit'),
@@ -80,8 +163,28 @@ void main() {
   late _FakeCocktailDbApi api;
 
   setUp(() {
+    // The splash holds itself on screen for the best part of a second so it
+    // does not read as a flicker. Every test here would pay that, so it is
+    // dropped to nothing.
+    SplashScreen.minimumDuration = Duration.zero;
     db = AppDatabase.forTesting(NativeDatabase.memory());
     api = _FakeCocktailDbApi(catalogue);
+
+    // cached_network_image asks path_provider for a cache directory the moment
+    // it starts loading. There is no plugin implementation under the test
+    // binding, so without this the first test that pumps long enough for an
+    // image to begin loading dies on a MissingPluginException.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall call) async =>
+              Directory.systemTemp.createTempSync('drinkopedia_test').path,
+        );
+
+    // rootBundle caches every string it loads, so the mock below is only
+    // consulted the first time. Without this eviction, whichever test loads
+    // the seed first decides the catalogue for every test after it.
+    rootBundle.evict(CocktailDbSpiritDataSource.seedAssetPath);
 
     // Shrink the shipped seed list to the two fixtures above.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -106,7 +209,11 @@ void main() {
 
   tearDown(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMessageHandler('flutter/assets', null);
+      ..setMockMessageHandler('flutter/assets', null)
+      ..setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        null,
+      );
     await db.close();
   });
 
@@ -138,32 +245,194 @@ void main() {
     }
   }
 
-  Future<void> pumpApp(WidgetTester tester, {String? initialLocation}) async {
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    String? initialLocation,
+    bool onboarded = true,
+  }) async {
     // The first frame schedules a post-frame callback that kicks off the
     // catalogue load. That chain ends in drift I/O, which is genuinely
     // asynchronous and does not advance under the tester's fake clock — so the
     // mount has to happen inside runAsync for those futures to complete.
     await tester.runAsync(() async {
+      // Default: pretend the taste intro has already been through. Every test
+      // below is about the catalogue, and a fresh in-memory database would
+      // otherwise open on the intro instead.
+      if (onboarded) {
+        await TasteRepositoryImpl(
+          dao: PreferencesDao(db),
+        ).save(const TastePreference(completed: true));
+      }
       await tester.pumpWidget(
         DrinkopediaApp(
           database: db,
           initialLocation: initialLocation,
           cocktailDbApi: api,
+          imageCacheManager: _noDiskImageCache,
         ),
       );
+      // Startup is two async hops, not one, and both are real I/O that only
+      // advances inside runAsync. First the app reads whether the taste intro
+      // has been through and only then builds the router; the catalogue screen
+      // it mounts *then* schedules its own load.
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tester.pump();
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 400));
     });
     await settle(tester);
   }
 
+  testWidgets('a cold start shows the splash before anything else', (
+    WidgetTester tester,
+  ) async {
+    // Long enough that the splash is unambiguously still up when checked.
+    SplashScreen.minimumDuration = const Duration(seconds: 5);
+    addTearDown(() => SplashScreen.minimumDuration = Duration.zero);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        DrinkopediaApp(
+          database: db,
+          cocktailDbApi: api,
+          imageCacheManager: _noDiskImageCache,
+        ),
+      );
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+    });
+
+    expect(find.byType(SplashScreen), findsOneWidget);
+    expect(find.byType(SpiritsScreen), findsNothing);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('a deep link is deferred through the splash, not lost', (
+    WidgetTester tester,
+  ) async {
+    // Opening straight into a route means nothing has read the preference yet,
+    // so the router cannot know whether to gate it. The link is carried
+    // through the splash and resumed rather than dropped on the catalogue.
+    await pumpApp(tester, initialLocation: '/spirits/1');
+
+    expect(find.byType(SpiritDetailScreen), findsOneWidget);
+    expect(find.byType(SplashScreen), findsNothing);
+  });
+
+  testWidgets('a first launch opens the taste intro, not the catalogue', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.byType(SpiritsScreen), findsNothing);
+  });
+
+  testWidgets('a later launch goes straight to the catalogue', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('a deep link on a first launch still goes through the intro', (
+    WidgetTester tester,
+  ) async {
+    // The router guards every route, so an unanswered intro wins over the
+    // requested location rather than being skipped past.
+    await pumpApp(tester, initialLocation: '/spirits/1', onboarded: false);
+
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+    expect(find.byType(SpiritDetailScreen), findsNothing);
+  });
+
+  testWidgets('skipping the intro records it, so it does not come back', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+    expect(find.byType(OnboardingScreen), findsOneWidget);
+
+    await tester.tap(findLabel('Skip'));
+    await pumpUntil(tester, find.byType(SpiritsScreen));
+    await settle(tester);
+
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+
+    // Skipping is an answer, not an absence of one: relaunching against the
+    // same database must not ask again.
+    await pumpApp(tester, onboarded: false);
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+    expect(find.byType(OnboardingScreen), findsNothing);
+  });
+
+  testWidgets('selected categories are not all the same colour', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+    await tester.tap(findLabel('Start'));
+    await settle(tester);
+
+    // Whiskey, Rum and Gin are adjacent in the enum, so each takes a different
+    // accent — a filled row must not read as one flat block.
+    final Set<Color?> picked = <Color?>{};
+    for (final String label in <String>['Whiskey', 'Rum', 'Gin']) {
+      await tester.tap(findLabel(label));
+      await settle(tester);
+      final AnimatedContainer panel = tester.widget<AnimatedContainer>(
+        find
+            .descendant(
+              of: find.ancestor(
+                of: findLabel(label),
+                matching: find.byType(HardEdgePanel),
+              ),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      picked.add((panel.decoration! as BoxDecoration).color);
+    }
+
+    expect(picked.length, 3, reason: 'three categories, three accents');
+  });
+
+  testWidgets('the intro walks its three steps and lands on the catalogue', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester, onboarded: false);
+
+    // Step 1 → 2.
+    await tester.tap(findLabel('Start'));
+    await settle(tester);
+    expect(findLabel('What are you into'), findsOneWidget);
+
+    // A raw upstream type never appears as a choice; the normalised name does.
+    expect(findLabel('Whiskey'), findsOneWidget);
+    expect(findLabel('Rice wine'), findsNothing);
+
+    await tester.tap(findLabel('Whiskey'));
+    await settle(tester);
+
+    // Step 2 → 3, then out.
+    await tester.tap(findLabel('Keep going'));
+    await settle(tester);
+    await tester.tap(findLabel('Start browsing'));
+    await pumpUntil(tester, find.byType(SpiritsScreen));
+    await settle(tester);
+
+    expect(find.byType(SpiritsScreen), findsOneWidget);
+  });
+
   testWidgets('catalogue loads and renders cards', (WidgetTester tester) async {
     await pumpApp(tester);
 
     expect(find.byType(SpiritsScreen), findsOneWidget);
     expect(find.byType(SpiritCard), findsNWidgets(2));
-    expect(find.text('Vodka'), findsWidgets);
-    expect(find.text('Mezcal'), findsWidgets);
+    expect(findLabel('Vodka'), findsWidgets);
+    expect(findLabel('Mezcal'), findsWidgets);
   });
 
   testWidgets('tapping a card opens its detail and story', (
@@ -171,15 +440,56 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('Vodka').first);
+    await tester.tap(findCard('Vodka').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
     expect(find.byType(SpiritDetailScreen), findsOneWidget);
-    expect(find.text('The Story'), findsOneWidget);
+    expect(findLabel('The Story'), findsOneWidget);
     expect(
       find.textContaining('distilled beverage from Eastern Europe'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('the name rises into the app bar as the header collapses', (
+    WidgetTester tester,
+  ) async {
+    // Before this, scrolling the story left the bar an empty strip with a
+    // back button in it and the name gone off the top.
+    //
+    // The viewport is squeezed so the 300pt header plus a short story actually
+    // overflows it; otherwise there is nothing to scroll and the drag is a
+    // no-op that would pass for the wrong reason.
+    tester.view.physicalSize = const Size(1170, 1500);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await pumpApp(tester);
+    await tester.tap(findCard('Vodka').first);
+    await pumpUntil(tester, find.byType(SpiritDetailScreen));
+    await settle(tester);
+
+    // Counted rather than fixed: this fixture's type is also "Vodka", so the
+    // chip matches the same finder as the name does.
+    final int whileExpanded = findLabel('Vodka').evaluate().length;
+
+    // Scoped to the detail screen: the catalogue is still mounted behind it
+    // and has a CustomScrollView of its own.
+    await tester.drag(
+      find.descendant(
+        of: find.byType(SpiritDetailScreen),
+        matching: find.byType(CustomScrollView),
+      ),
+      const Offset(0, -280),
+    );
+    await settle(tester);
+    await settle(tester);
+
+    expect(
+      findLabel('Vodka').evaluate().length,
+      whileExpanded + 1,
+      reason: 'collapsing adds exactly one more Vodka: the one in the bar',
     );
   });
 
@@ -188,7 +498,7 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('Mezcal').first);
+    await tester.tap(findCard('Mezcal').first);
     await pumpUntil(tester, find.byType(SpiritDetailScreen));
     await settle(tester);
 
@@ -219,14 +529,403 @@ void main() {
     expect(find.text('That page does not exist'), findsOneWidget);
   });
 
-  testWidgets('search filters the catalogue', (WidgetTester tester) async {
+  /// Swaps in [byName] as both the upstream data and the seed list, in order.
+  void useCatalogue(Map<String, Map<String, dynamic>> byName) {
+    api = _FakeCocktailDbApi(byName);
+    rootBundle.evict(CocktailDbSpiritDataSource.seedAssetPath);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMessageHandler('flutter/assets', (ByteData? message) async {
+          final String key = utf8.decode(
+            message!.buffer.asUint8List(
+              message.offsetInBytes,
+              message.lengthInBytes,
+            ),
+          );
+          if (key != CocktailDbSpiritDataSource.seedAssetPath) return null;
+          return ByteData.view(
+            Uint8List.fromList(
+              utf8.encode(
+                jsonEncode(<String, dynamic>{'spirits': byName.keys.toList()}),
+              ),
+            ).buffer,
+          );
+        });
+  }
+
+  /// Swaps in a catalogue of [count] generated spirits, all rum except the
+  /// ones at [whiskeyAt]. Larger than a page, so the screen has to page.
+  void useLargeCatalogue(int count, {Set<int> whiskeyAt = const <int>{}}) {
+    useCatalogue(<String, Map<String, dynamic>>{
+      for (int i = 0; i < count; i++)
+        'Spirit ${i.toString().padLeft(2, '0')}': _ingredient(
+          '$i',
+          'Spirit ${i.toString().padLeft(2, '0')}',
+          type: whiskeyAt.contains(i) ? 'Whiskey' : 'Rum',
+          description: 'Story $i.',
+        ),
+    });
+  }
+
+  /// Phone-shaped, so a page of cards is several screens tall and the next
+  /// page genuinely waits for a scroll rather than loading on arrival.
+  void usePhoneViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+  }
+
+  Finder catalogueScroll() => find.descendant(
+    of: find.byType(SpiritsScreen),
+    matching: find.byType(CustomScrollView),
+  );
+
+  testWidgets('scrolling to the end loads the next page, then the shelf ends', (
+    WidgetTester tester,
+  ) async {
+    usePhoneViewport(tester);
+    useLargeCatalogue(45);
     await pumpApp(tester);
 
-    await tester.enterText(find.byType(SearchBar), 'mez');
+    // One page up front, and the count says how much is left.
+    expect(findLabel('20 of 45'), findsOneWidget);
+
+    // Left alone, it stays at one page. This is scroll-to-load, not a
+    // background download: the next page waits for the reader.
+    await pumpUntil(tester, findLabel('40 of 45'), maxAttempts: 30);
+    expect(findLabel('20 of 45'), findsOneWidget);
+
+    // Scrolling reaches the end of the shelf. A drag releases with momentum,
+    // so a single fling can carry through more than one page; only the end
+    // state is asserted.
+    final Finder end = findLabel("That's the whole shelf");
+    for (int i = 0; i < 15 && end.evaluate().isEmpty; i++) {
+      await tester.drag(catalogueScroll(), const Offset(0, -2000));
+      await pumpUntil(tester, end, maxAttempts: 20);
+    }
+
+    expect(end, findsOneWidget);
+
+    // The count lives in the header, scrolled off the top by now.
+    await tester.drag(catalogueScroll(), const Offset(0, 100000));
+    await settle(tester);
+    expect(findLabel('45 spirits'), findsOneWidget);
+  });
+
+  testWidgets('a filter keeps loading until it finds its spirits', (
+    WidgetTester tester,
+  ) async {
+    // The dead end pure scroll-to-load walks into: the only whiskey is on page
+    // three, so filtering to Whiskey leaves an empty grid with nothing to
+    // scroll. Loading has to carry on while the end of the list is in view.
+    usePhoneViewport(tester);
+    useLargeCatalogue(45, whiskeyAt: <int>{42});
+    await pumpApp(tester);
+
+    await tester.tap(findLabel('Whiskey'));
+    await pumpUntil(tester, findCard('Spirit 42'), maxAttempts: 120);
+
+    expect(findCard('Spirit 42'), findsWidgets);
+    expect(find.byType(SpiritCard), findsOneWidget);
+  });
+
+  testWidgets('a throttled page offers a retry, never a false "no match"', (
+    WidgetTester tester,
+  ) async {
+    // The bug a real 429 produced: a search paged through the catalogue, the
+    // page holding its only match was throttled, the failure was taken for
+    // "upstream has no such spirit", and the screen said nothing matched.
+    usePhoneViewport(tester);
+    useLargeCatalogue(45);
+    api.throttled.add('Spirit 42');
+    await pumpApp(tester);
+
+    await tester.enterText(find.byType(TextField), 'Spirit 42');
+    final Finder retry = findLabel('Try again');
+    await pumpUntil(tester, retry, maxAttempts: 120);
+
+    expect(findLabel("Couldn't load more"), findsOneWidget);
+    expect(findLabel('No spirits match'), findsNothing);
+
+    api.throttled.clear();
+    await tester.tap(retry);
+    await pumpUntil(tester, findCard('Spirit 42'), maxAttempts: 60);
+
+    expect(findCard('Spirit 42'), findsWidgets);
+  });
+
+  testWidgets('a category chip narrows the grid, and tapping it again clears', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+    expect(find.byType(SpiritCard), findsNWidgets(2));
+
+    // Mezcal is typed as the catch-all Spirit upstream, but files with
+    // tequila by name — so that chip isolates it.
+    final Finder tequila = findLabel('Tequila & mezcal');
+    // The row scrolls sideways and this chip starts off the edge of it.
+    await tester.ensureVisible(tequila);
+    await settle(tester);
+    await tester.tap(tequila);
     await settle(tester);
 
     expect(find.byType(SpiritCard), findsOneWidget);
-    expect(find.text('Mezcal'), findsWidgets);
+    expect(findCard('Mezcal'), findsWidgets);
+
+    await tester.tap(tequila);
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsNWidgets(2));
+  });
+
+  group('filter sheet', () {
+    /// Five spirits that split every way the sheet can cut them.
+    Map<String, Map<String, dynamic>> shelf() => <String, Map<String, dynamic>>{
+      'Gin': _ingredient(
+        '11',
+        'Gin',
+        type: 'Gin',
+        abv: '40',
+        description: 'Juniper.',
+      ),
+      'Amaretto': _ingredient(
+        '12',
+        'Amaretto',
+        type: 'Liqueur',
+        abv: '28',
+        description: 'Almond.',
+      ),
+      // No ABV and no story upstream, like the real Tuaca.
+      'Tuaca': _ingredient('13', 'Tuaca', type: 'Liqueur'),
+      'Ale': _ingredient(
+        '14',
+        'Ale',
+        type: 'Beer',
+        abv: '4',
+        description: 'Top-fermented.',
+      ),
+      'Bourbon': _ingredient(
+        '15',
+        'Bourbon',
+        type: 'Whiskey',
+        description: 'Corn.',
+      ),
+    };
+
+    Finder inSheet(Finder finder) =>
+        find.descendant(of: find.byType(FilterSheet), matching: finder);
+
+    /// Long enough for the sheet's slide and its staggered sections to land.
+    Future<void> settleSheet(WidgetTester tester) async {
+      for (int i = 0; i < 16; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    /// Taps [text] in the sheet, scrolling it into view first: the sheet
+    /// scrolls under its pinned Show button, and a chip hidden beneath the
+    /// button would otherwise be a tap on Show.
+    Future<void> tapInSheet(WidgetTester tester, String text) async {
+      final Finder target = inSheet(find.text(text));
+      await tester.ensureVisible(target);
+      await tester.pump();
+      await tester.tap(target);
+      await tester.pump();
+    }
+
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Filters'));
+      await settleSheet(tester);
+      expect(find.byType(FilterSheet), findsOneWidget);
+    }
+
+    testWidgets('combining filters narrows the shelf and badges the button', (
+      WidgetTester tester,
+    ) async {
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+      expect(find.byType(SpiritCard), findsNWidgets(5));
+
+      await openSheet(tester);
+      await tapInSheet(tester, 'LIQUEUR');
+      await tapInSheet(tester, 'GIN');
+      await tapInSheet(tester, 'MEDIUM · 20–37%');
+      await settleSheet(tester);
+
+      // Liqueur or gin, at 20–37%: only Amaretto. Gin is too strong, and
+      // Tuaca's ABV is unknown, so it cannot be placed in a band at all.
+      final Finder show = inSheet(find.text('SHOW 1 SPIRIT'));
+      expect(show, findsOneWidget);
+      await tester.tap(show);
+      await settleSheet(tester);
+
+      expect(find.byType(FilterSheet), findsNothing);
+      expect(find.byType(SpiritCard), findsOneWidget);
+      expect(findCard('Amaretto'), findsWidgets);
+      expect(find.byTooltip('Filters, 3 active'), findsOneWidget);
+    });
+
+    testWidgets('dismissing the sheet drops the draft', (
+      WidgetTester tester,
+    ) async {
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+
+      await openSheet(tester);
+      await tapInSheet(tester, 'LIQUEUR');
+      await settleSheet(tester);
+      // The dimmed catalogue above the sheet closes it without applying.
+      await tester.tapAt(const Offset(20, 20));
+      await settleSheet(tester);
+
+      expect(find.byType(FilterSheet), findsNothing);
+      expect(find.byType(SpiritCard), findsNWidgets(5));
+      expect(find.byTooltip('Filters'), findsOneWidget);
+    });
+
+    testWidgets('a filter that matches nothing offers a way back out', (
+      WidgetTester tester,
+    ) async {
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+
+      await openSheet(tester);
+      await tapInSheet(tester, 'BEER & CIDER');
+      await tapInSheet(tester, 'STRONG · 37.5%+');
+      await settleSheet(tester);
+      await tapInSheet(tester, 'NO SPIRITS MATCH');
+      await settleSheet(tester);
+
+      // The filters were picked in a sheet that is now closed, so the reset
+      // has to be on the empty result itself.
+      expect(findLabel('No spirits match these filters'), findsOneWidget);
+      await tester.tap(findLabel('Reset'));
+      await settleSheet(tester);
+
+      expect(find.byType(SpiritCard), findsNWidgets(5));
+      expect(find.byTooltip('Filters'), findsOneWidget);
+    });
+
+    testWidgets('with reduced motion the sheet is simply there', (
+      WidgetTester tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      usePhoneViewport(tester);
+      useCatalogue(shelf());
+      await pumpApp(tester);
+
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(inSheet(find.text('STRENGTH')), findsOneWidget);
+      // Already where it ends up: nothing is still sliding in.
+      final double top = tester.getTopLeft(find.byType(FilterSheet)).dy;
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.getTopLeft(find.byType(FilterSheet)).dy, top);
+    });
+  });
+
+  testWidgets('search filters the catalogue', (WidgetTester tester) async {
+    await pumpApp(tester);
+
+    await tester.enterText(find.byType(TextField), 'mez');
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsOneWidget);
+    expect(findLabel('Mezcal'), findsWidgets);
+  });
+
+  testWidgets('search is disabled when there is nothing to search', (
+    WidgetTester tester,
+  ) async {
+    // Empty cache plus a failed refresh. A field that stays live here swallows
+    // every keystroke in silence, which reads as a broken app rather than an
+    // empty one.
+    await tester.runAsync(() async {
+      await TasteRepositoryImpl(
+        dao: PreferencesDao(db),
+      ).save(const TastePreference(completed: true));
+      await tester.pumpWidget(
+        DrinkopediaApp(
+          database: db,
+          cocktailDbApi: _DeadCocktailDbApi(),
+          imageCacheManager: _noDiskImageCache,
+        ),
+      );
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tester.pump();
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).enabled,
+      isFalse,
+      reason: 'nothing loaded, so the field must not pretend to work',
+    );
+    expect(
+      find.byIcon(Icons.close),
+      findsNothing,
+      reason: 'and it offers no clear button for a query it cannot run',
+    );
+  });
+
+  testWidgets('the search field can be cleared and gives up focus', (
+    WidgetTester tester,
+  ) async {
+    // There is no form to submit here, so without a way out the keyboard
+    // covers half the catalogue with no route back.
+    await pumpApp(tester);
+
+    await tester.enterText(find.byType(TextField), 'mez');
+    await settle(tester);
+    expect(find.byType(SpiritCard), findsOneWidget);
+
+    final Finder clear = find.byIcon(Icons.close);
+    expect(clear, findsOneWidget, reason: 'a clear button appears once typed');
+
+    await tester.tap(clear);
+    await settle(tester);
+
+    expect(find.byType(SpiritCard), findsNWidgets(2));
+    expect(clear, findsNothing, reason: 'and goes away once empty');
+    expect(
+      tester.testTextInput.isVisible,
+      isFalse,
+      reason: 'clearing must also dismiss the keyboard',
+    );
+  });
+
+  testWidgets('scrolling the catalogue dismisses the keyboard', (
+    WidgetTester tester,
+  ) async {
+    // The two-spirit fixture does not fill a phone, and a scroll view with
+    // nothing to scroll never reports a drag — so the viewport is squeezed
+    // until the grid genuinely overflows it.
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await pumpApp(tester);
+
+    await tester.tap(find.byType(TextField));
+    await settle(tester);
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -150));
+    await settle(tester);
+
+    expect(tester.testTextInput.isVisible, isFalse);
   });
 
   testWidgets('a warm cache does not refetch on relaunch', (
