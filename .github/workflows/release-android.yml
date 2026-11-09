@@ -123,8 +123,9 @@ jobs:
       - name: Analyze project source
         run: flutter analyze
 
+      # See the note in dart.yml: retries only a corrupted sqlite3 download.
       - name: Run tests
-        run: flutter test
+        run: .github/scripts/with-native-asset-retry.sh flutter test
 
       - name: Restore the upload keystore
         env:
@@ -147,7 +148,8 @@ jobs:
         env:
           COCKTAILDB_KEY: ${{ secrets.COCKTAILDB_KEY }}
         run: |
-          flutter build appbundle --release \
+          .github/scripts/with-native-asset-retry.sh \
+            flutter build appbundle --release \
             --build-name="${{ steps.version.outputs.name }}" \
             --build-number="${{ steps.version.outputs.code }}" \
             --dart-define=COCKTAILDB_KEY="$COCKTAILDB_KEY"
