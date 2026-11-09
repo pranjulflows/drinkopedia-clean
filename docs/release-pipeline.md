@@ -32,8 +32,10 @@ below what the installed Xcode supports.
    rebuilding, and the APK is there to install on a device directly.
 8. Uploads the **bundle** to internal testing. Play has required an app bundle
    since 2021 and will not take the APK.
-9. Writes the released version back to `pubspec.yaml` on `main`, then deletes
-   the signing material.
+9. Writes the released version back to `pubspec.yaml` on `main`.
+10. Publishes both files to **GitHub Releases** under the version's tag, named
+    `drinkopedia-<version>-<build>.aab` / `.apk`, then deletes the signing
+    material.
 
 ## Version numbers
 
@@ -124,10 +126,19 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
-Watch it with `gh run watch`, or in the Actions tab. When it finishes, the
-build is in Play Console under **Testing → Internal testing**, the APK and the
-bundle are both attached to the run as artifacts, and `main` carries a commit
-recording the version that shipped.
+Watch it with `gh run watch`, or in the Actions tab. When it finishes:
+
+- the build is in Play Console under **Testing → Internal testing**
+- both files are on the repo's **Releases** page under that version's tag,
+  which is the durable copy — workflow artifacts expire after 90 days and need
+  a login, a release asset does neither
+- both are also attached to the run as artifacts
+- `main` carries a commit recording the version that shipped
+
+The release step runs *after* the upload and the version bump, so if it is the
+thing that fails, the release itself already went out. Fix that by attaching
+the files by hand with `gh release create`, not by re-running the job: the
+build number is spent and a re-run would stop at "version code already used".
 
 To build without tagging — a rebuild, or a push to a different testing track —
 use **Actions → Release (Android) → Run workflow**, which asks for the version

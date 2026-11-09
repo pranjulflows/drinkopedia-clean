@@ -258,6 +258,40 @@ jobs:
           # this build number and Play rejects the upload.
           git push origin main
 
+      - name: Publish the build to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_NAME: ${{ steps.version.outputs.name }}
+          BUILD_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          set -euo pipefail
+          tag="v${BUILD_NAME}"
+
+          # Both build outputs are called app-release, which says nothing once
+          # downloaded. Name them after what they are.
+          aab="drinkopedia-${BUILD_NAME}-${BUILD_CODE}.aab"
+          apk="drinkopedia-${BUILD_NAME}-${BUILD_CODE}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "$aab"
+          cp build/app/outputs/flutter-apk/app-release.apk "$apk"
+
+          notes=$(printf '%s\n\n%s' \
+            "Uploaded to Play internal testing as build ${BUILD_CODE}." \
+            "The APK installs straight onto a device. The bundle is what Play takes.")
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # A re-run, or a release someone made by hand: attach to it
+            # rather than failing on a name that already exists.
+            gh release upload "$tag" "$aab" "$apk" --clobber
+          else
+            # On a tag run the tag already exists; on a manual run this
+            # creates it, pinned to the commit that was actually built.
+            gh release create "$tag" "$aab" "$apk" \
+              --target "$GITHUB_SHA" \
+              --title "Drinkopedia ${BUILD_NAME} (build ${BUILD_CODE})" \
+              --notes "$notes" \
+              --generate-notes
+          fi
+
       - name: Remove the signing material
         if: always()
         run: rm -f android/key.properties "$RUNNER_TEMP/upload.jks"
