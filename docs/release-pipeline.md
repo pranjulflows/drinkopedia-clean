@@ -18,28 +18,42 @@ below what the installed Xcode supports.
 ## What a release run does
 
 1. Refuses to start unless every secret below is set.
-2. Works out the version, and refuses anything that is not `major.minor.patch`.
+2. Works out the version: the name from the tag, the build number from
+   `pubspec.yaml` plus one.
 3. Refuses to release a commit that is not on `main`.
 4. Runs `flutter analyze` and the full test suite. A tag can point at a commit
    CI never saw green, and a broken build must not reach even internal testers.
-5. Builds the bundle, signed with the upload key.
-6. Checks the signature is the upload key and not the debug key.
-7. Keeps the bundle as a 90-day workflow artifact, so a failed upload does not
-   mean rebuilding.
-8. Uploads to the internal testing track, then deletes the signing material.
+5. Builds **an app bundle and an APK**, both signed with the upload key.
+6. Checks both are signed with the upload key and not the debug key.
+7. Keeps both as a 90-day workflow artifact, so a failed upload does not mean
+   rebuilding, and the APK is there to install on a device directly.
+8. Uploads the **bundle** to internal testing. Play has required an app bundle
+   since 2021 and will not take the APK.
+9. Writes the released version back to `pubspec.yaml` on `main`, then deletes
+   the signing material.
 
 ## Version numbers
 
-Tag `v1.0.1` gives version name `1.0.1` and version code `10001`, from
-`major × 10000 + minor × 100 + patch`.
+The tag sets the version name and `pubspec.yaml` sets the build number:
 
-Play refuses a version code it has already seen, so deriving the code from the
-version means the same release can never be uploaded twice by accident, and
-re-running a failed job is safe right up until the upload succeeds. It also
-clears the version code `1` already uploaded by hand.
+| | Comes from | Example |
+|---|---|---|
+| Version name | the tag, minus the `v` | `v1.0.1` → `1.0.1` |
+| Build number | `pubspec.yaml`'s `+N`, plus one | `1.0.0+1` → `2` |
 
-Keep minor and patch below 100. `pubspec.yaml`'s own `version:` is ignored on a
-release run — the tag decides.
+After a successful upload the run commits `version: 1.0.1+2` to `main` with a
+`[skip ci]` marker, so the repo always says what shipped last and the next
+release counts on from there.
+
+That write-back is the one place anything is pushed straight to a branch
+rather than through a pull request, and it is load-bearing: **if it fails, the
+job fails**, because a silent skip would make the next release reuse the build
+number and Play would reject the upload. The release workflow answers only to
+tags, so the push cannot start another release.
+
+Build numbers only ever have to increase, so gaps are harmless. If you upload
+a build by hand, bump `pubspec.yaml` to match or the next tagged release will
+collide with it.
 
 ## One-time setup
 
@@ -96,7 +110,9 @@ git push origin v1.0.1
 ```
 
 Watch it with `gh run watch`, or in the Actions tab. When it finishes, the
-build is in Play Console under **Testing → Internal testing**.
+build is in Play Console under **Testing → Internal testing**, the APK and the
+bundle are both attached to the run as artifacts, and `main` carries a commit
+recording the version that shipped.
 
 To build without tagging — a rebuild, or a push to a different testing track —
 use **Actions → Release (Android) → Run workflow**, which asks for the version
@@ -107,7 +123,8 @@ and the track.
 - The repo is public, but GitHub never exposes secrets in logs, and never
   gives them to pull requests from forks. A release only runs from a tag on
   `main`, which only you can push.
-- The workflow asks for `contents: read` and nothing more.
+- The workflow asks for `contents: write`, which it needs only to record the
+  released version on `main`.
 - The keystore and `key.properties` are deleted at the end of every run, even
   when it fails.
 - The service account can reach testing tracks only, so a mistake or a leaked
