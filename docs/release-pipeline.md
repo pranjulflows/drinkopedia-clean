@@ -83,26 +83,38 @@ read -rs k && printf '%s' "$k" | gh secret set COCKTAILDB_KEY && unset k
 
 ### 2. A Play Developer API service account
 
-1. **Play Console → Setup → API access.** Link a Google Cloud project if you
-   have not already.
-2. In that Google Cloud project: **IAM & Admin → Service Accounts → Create**.
-   Name it something like `play-publisher`. No project roles are needed — the
-   permissions that matter are granted in Play Console.
-3. On the new account: **Keys → Add key → Create new key → JSON**. A file
+There is no "link a Google Cloud project" step any more, and no need to open
+Play Console's **API access** page at all. Google's own documentation says:
+"You no longer need to link your developer account to a Google Cloud Project
+in order to access the Google Play Developer API." The account is created in
+Google Cloud and then invited into Play Console.
+
+1. **A Google Cloud project**, new or existing —
+   <https://console.cloud.google.com/projectcreate>
+2. **Enable the Google Play Developer API** in it —
+   <https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com>
+3. **Create the service account** —
+   <https://console.cloud.google.com/iam-admin/serviceaccounts> → *Create
+   service account*. Name it something like `play-publisher`. **Skip the
+   "grant this service account access to the project" step**: no Cloud role is
+   needed, because the permission that matters is granted in Play Console.
+4. On the new account: **Keys → Add key → Create new key → JSON**. A file
    downloads. Treat it like a password.
-4. Back in **Play Console → Users and permissions → Invite new user**, invite
-   the service account's email address. Give it access to Drinkopedia with
-   **Release to testing tracks** (and **View app information**). It does not
-   need production release permission, and should not have it.
-5. Store it, then delete the download:
+5. **Invite it into Play Console** —
+   <https://play.google.com/console/users-and-permissions> → *Invite new
+   users*. The email is the service account's, ending
+   `.iam.gserviceaccount.com`. Give it access to Drinkopedia with **Release to
+   testing tracks**. It does not need production release permission, and
+   should not have it: that way a leaked key cannot reach real users.
+6. Store it, then delete the download:
 
 ```bash
-gh secret set PLAY_SERVICE_ACCOUNT_JSON < ~/Downloads/play-publisher-*.json
-rm ~/Downloads/play-publisher-*.json
+gh secret set PLAY_SERVICE_ACCOUNT_JSON < ~/Downloads/<the-file>.json
+rm ~/Downloads/<the-file>.json
 ```
 
-New Play permissions sometimes take a few hours to take effect. If the first
-run fails on permissions, that is usually why.
+A newly invited service account does not always work immediately — if the
+first run fails on permissions, waiting and re-running is usually enough.
 
 ## Releasing
 
