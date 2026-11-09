@@ -24,7 +24,10 @@ below what the installed Xcode supports.
 4. Runs `flutter analyze` and the full test suite. A tag can point at a commit
    CI never saw green, and a broken build must not reach even internal testers.
 5. Builds **an app bundle and an APK**, both signed with the upload key.
-6. Checks both are signed with the upload key and not the debug key.
+6. Checks both are signed with the upload key and not the debug key. The two
+   need different tools: the bundle carries a JAR signature that `keytool`
+   reads, while the APK is signed with APK Signature Scheme v2 only, which
+   `keytool` cannot see at all — `apksigner` reads that one.
 7. Keeps both as a 90-day workflow artifact, so a failed upload does not mean
    rebuilding, and the APK is there to install on a device directly.
 8. Uploads the **bundle** to internal testing. Play has required an app bundle
