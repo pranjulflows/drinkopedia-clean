@@ -135,6 +135,10 @@ keyAlias=upload
 storeFile=/Users/<you>/drinkopedia-upload.jks
 ```
 
+Pushing a `v*` tag to `main` now does all of this automatically and uploads to
+internal testing — see `docs/release-pipeline.md`. The steps below are the
+manual equivalent, for a one-off build or when the pipeline is unavailable.
+
 **The bundle**:
 
 ```bash

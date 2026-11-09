@@ -1,0 +1,188 @@
+# Builds a signed Android App Bundle and uploads it to Play Console.
+#
+# Triggered by a version tag on `main`, which is the only branch releases come
+# from (docs/branching-strategy.md). It uploads to the **internal testing**
+# track and never to production: promoting a build to real users stays a
+# deliberate click in Play Console.
+#
+# Secrets this needs — see docs/release-pipeline.md for how to create them:
+#   ANDROID_KEYSTORE_BASE64     the upload keystore, base64-encoded
+#   ANDROID_KEYSTORE_PASSWORD   its store password
+#   ANDROID_KEY_PASSWORD        the key's own password
+#   ANDROID_KEY_ALIAS           the key alias (e.g. upload)
+#   COCKTAILDB_KEY              the premium TheCocktailDB key
+#   PLAY_SERVICE_ACCOUNT_JSON   a Play Developer API service-account key
+name: Release (Android)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, without the leading v (e.g. 1.0.1)"
+        required: true
+      track:
+        description: "Play track to upload to"
+        default: internal
+        type: choice
+        options: [internal, alpha, beta]
+
+permissions:
+  contents: read
+
+# One release at a time: two uploads racing would fight over version codes.
+concurrency:
+  group: release-android
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The release guard below compares this commit against main, which
+          # needs more than the default single-commit checkout.
+          fetch-depth: 0
+
+      - name: Check the required secrets are set
+        env:
+          REQUIRED: >-
+            ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD
+            ANDROID_KEY_ALIAS COCKTAILDB_KEY PLAY_SERVICE_ACCOUNT_JSON
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          COCKTAILDB_KEY: ${{ secrets.COCKTAILDB_KEY }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          # Failing here beats failing two minutes into a build, and beats
+          # shipping a bundle built with an empty API key.
+          missing=
+          for name in $REQUIRED; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            exit 1
+          fi
+
+      - name: Work out the version
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "$DISPATCH_VERSION" ]; then
+            name="$DISPATCH_VERSION"
+          else
+            name="${GITHUB_REF_NAME#v}"
+          fi
+          echo "$name" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "::error::Version must look like 1.0.1, got '$name'"; exit 1; }
+
+          # Play needs a version code that only ever increases, and refuses a
+          # code it has already seen. Deriving it from the version means the
+          # same release can never be uploaded twice by accident, and that
+          # re-running a failed job is safe up until the upload succeeds.
+          IFS=. read -r major minor patch <<< "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$((major * 10000 + minor * 100 + patch))" >> "$GITHUB_OUTPUT"
+
+      - name: Check the commit is on main
+        run: |
+          # `main` is release-only. Without this, tagging any branch would ship it.
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_SHA is not on main — release from main only"; exit 1; }
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.9
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Nothing compiles before codegen: retrofit clients, drift tables, JSON
+      # serialisation and typed routes are all generated and gitignored.
+      - name: Generate code
+        run: dart run build_runner build
+
+      # The same gate as every PR. A tag can point at a commit CI never saw
+      # green, and a broken build must not reach even internal testers.
+      - name: Analyze project source
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Restore the upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/upload.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          # android/build.gradle.kts reads this file and falls back to the
+          # debug key when it is absent — which Play rejects, so a silent
+          # fallback would waste an upload rather than ship something unsigned.
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=%s\n' \
+            "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" "$keystore" \
+            > android/key.properties
+
+      - name: Build the app bundle
+        env:
+          COCKTAILDB_KEY: ${{ secrets.COCKTAILDB_KEY }}
+        run: |
+          flutter build appbundle --release \
+            --build-name="${{ steps.version.outputs.name }}" \
+            --build-number="${{ steps.version.outputs.code }}" \
+            --dart-define=COCKTAILDB_KEY="$COCKTAILDB_KEY"
+
+      - name: Confirm it is signed with the upload key, not the debug key
+        run: |
+          set -euo pipefail
+          bundle=build/app/outputs/bundle/release/app-release.aab
+          owner=$(keytool -printcert -jarfile "$bundle" | sed -n 's/^Owner: //p' | head -1)
+          echo "Signed by: $owner"
+          # Play rejects a debug-signed upload; catching it here says why.
+          case "$owner" in
+            *"Android Debug"*|"") echo "::error::Debug-signed or unsigned"; exit 1 ;;
+          esac
+
+      - name: Keep the bundle with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ steps.version.outputs.name }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload to Play Console
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.drinkopedia.app
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          # Internal testing only. Promoting to production stays a human
+          # decision in Play Console, and production needs the closed-test
+          # requirement met first anyway.
+          track: ${{ inputs.track || 'internal' }}
+          status: completed
+
+      - name: Remove the signing material
+        if: always()
+        run: rm -f android/key.properties "$RUNNER_TEMP/upload.jks"
