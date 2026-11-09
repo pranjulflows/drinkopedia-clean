@@ -18,7 +18,7 @@ are done.
 | 4 | **Create the upload key** (once, and keep it safe) | Play rejects debug-signed bundles. See section 7. |
 | 5 | **Host the privacy policy** | Required for every app. See section 5. |
 | 6 | ~~Replace the launcher icon~~ — done | The installed app now carries the same bottle mark as the store icon, generated from one source by `tool/generate_launcher_icons.py`. |
-| 7 | *(optional)* Android Studio → SDK Manager → SDK Tools → **Android SDK Command-line Tools** | Silences Flutter's "failed to strip debug symbols" message at the end of `flutter build appbundle`. The bundle is fine either way. |
+| 7 | Android Studio → SDK Manager → SDK Tools → **Android SDK Command-line Tools** | Without it `flutter build appbundle` writes the bundle but **exits 1** on "failed to strip debug symbols", so a local build looks like a failure. CI is unaffected: GitHub's runners ship these tools. |
 
 ## 1. Developer account
 
