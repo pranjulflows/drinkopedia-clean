@@ -134,74 +134,18 @@ jobs:
       - name: Run tests
         run: .github/scripts/with-native-asset-retry.sh flutter test
 
-      - name: Restore the upload keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: |
-          set -euo pipefail
-          keystore="$RUNNER_TEMP/upload.jks"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
-          # android/build.gradle.kts reads this file and falls back to the
-          # debug key when it is absent — which Play rejects, so a silent
-          # fallback would waste an upload rather than ship something unsigned.
-          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=%s\n' \
-            "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" "$keystore" \
-            > android/key.properties
-
-      - name: Build the app bundle and the APK
-        env:
-          COCKTAILDB_KEY: ${{ secrets.COCKTAILDB_KEY }}
-          BUILD_NAME: ${{ steps.version.outputs.name }}
-          BUILD_CODE: ${{ steps.version.outputs.code }}
-        run: |
-          set -euo pipefail
-          # The bundle is what Play takes. The APK is for installing directly
-          # — a tester on a device, or a quick check without Play in the way.
-          for target in appbundle apk; do
-            .github/scripts/with-native-asset-retry.sh \
-              flutter build "$target" --release \
-                --build-name="$BUILD_NAME" \
-                --build-number="$BUILD_CODE" \
-                --dart-define=COCKTAILDB_KEY="$COCKTAILDB_KEY"
-          done
-
-      - name: Confirm both are signed with the upload key, not the debug key
-        run: |
-          set -euo pipefail
-          bundle=build/app/outputs/bundle/release/app-release.aab
-          apk=build/app/outputs/flutter-apk/app-release.apk
-
-          # The two need different tools. The bundle carries a JAR signature,
-          # which keytool reads. The APK does not: with minSdk 24, Gradle
-          # signs it with APK Signature Scheme v2 and leaves v1 off, so
-          # keytool prints nothing at all for it — which would reject a
-          # perfectly well-signed APK and fail every release. apksigner is the
-          # tool that understands v2.
-          apksigner=$(ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
-          if [ -z "$apksigner" ]; then
-            echo "::error::apksigner not found — refusing to upload an APK whose signature cannot be checked"
-            exit 1
-          fi
-
-          bundle_owner=$(keytool -printcert -jarfile "$bundle" | sed -n 's/^Owner: //p' | head -1)
-          # apksigner has printed this line as both "Signer #1 certificate DN"
-          # and "V2 Signer: certificate DN" across build-tools versions.
-          "$apksigner" verify "$apk"
-          apk_owner=$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate DN: //p' | head -1)
-
-          echo "bundle signed by: $bundle_owner"
-          echo "APK signed by:    $apk_owner"
-
-          # Play rejects a debug-signed upload; catching it here says why.
-          for owner in "$bundle_owner" "$apk_owner"; do
-            case "$owner" in
-              *"Android Debug"*|"")
-                echo "::error::An artifact is debug-signed or unsigned"; exit 1 ;;
-            esac
-          done
+      # Build, sign and verify the bundle and the APK. Shared with
+      # build-main.yml, so the build and its signature guard live in one place.
+      - name: Build and verify the signed bundle and APK
+        uses: ./.github/actions/android-release-build
+        with:
+          build-name: ${{ steps.version.outputs.name }}
+          build-number: ${{ steps.version.outputs.code }}
+          cocktaildb-key: ${{ secrets.COCKTAILDB_KEY }}
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
 
       - name: Keep the bundle and the APK with the run
         uses: actions/upload-artifact@v4
@@ -283,15 +227,21 @@ jobs:
             # rather than failing on a name that already exists.
             gh release upload "$tag" "$aab" "$apk" --clobber
           else
+            # The changelog runs from the previous Play release. Left to
+            # itself, GitHub would start from the newest release of any kind
+            # — which, with a build-* prerelease published on every merge to
+            # main, is usually the merge build of this very commit, leaving
+            # the notes empty.
+            since=()
+            if previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${GITHUB_SHA}^" 2>/dev/null); then
+              since=(--notes-start-tag "$previous")
+            fi
+
             # On a tag run the tag already exists; on a manual run this
             # creates it, pinned to the commit that was actually built.
             gh release create "$tag" "$aab" "$apk" \
               --target "$GITHUB_SHA" \
               --title "Drinkopedia ${BUILD_NAME} (build ${BUILD_CODE})" \
               --notes "$notes" \
-              --generate-notes
+              --generate-notes ${since[@]+"${since[@]}"}
           fi
-
-      - name: Remove the signing material
-        if: always()
-        run: rm -f android/key.properties "$RUNNER_TEMP/upload.jks"
