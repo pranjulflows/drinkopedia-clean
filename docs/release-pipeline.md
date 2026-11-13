@@ -4,8 +4,16 @@ title: Android release pipeline
 
 # Android release pipeline
 
-`.github/workflows/release-android.yml` builds a signed Android App Bundle and
-uploads it to Play Console's **internal testing** track.
+Two workflows build signed Android releases:
+
+| Workflow | Runs on | Builds | Goes to |
+|---|---|---|---|
+| `release-android.yml` | a `v*` tag on `main` | AAB + APK | Play **internal testing**, and GitHub Releases |
+| `build-main.yml` | every merge to `main` | AAB + APK | GitHub Releases only, as a prerelease |
+
+Both build, sign and verify through one shared action,
+`.github/actions/android-release-build`, so the build and its signature guard
+exist in exactly one place.
 
 It never publishes to production. Promoting a build to real users stays a
 deliberate click in Play Console — and production needs the closed-testing
@@ -36,6 +44,32 @@ below what the installed Xcode supports.
 10. Publishes both files to **GitHub Releases** under the version's tag, named
     `drinkopedia-<version>-<build>.aab` / `.apk`, then deletes the signing
     material.
+
+## Builds on every merge to main
+
+Every push to `main` builds a signed bundle and APK and publishes them on the
+repo's **Releases** page, so the current `main` can be installed without Play:
+
+- **Tagged** `build-<version>-<build>-<commit>`, e.g. `build-1.0.2-4-6b7a3be`,
+  and marked as a **prerelease**. "Latest" stays with the releases that went to
+  Play.
+- **Version**: `main`'s version name, and the build number the next Play
+  release would use. Nothing is written back, so these builds spend no build
+  number.
+- **Not v-prefixed, deliberately.** The release workflow triggers on `v*` tags
+  and finds the previous Play release by matching `v[0-9]*`, so a
+  `v1.0.2-b4` would be mistaken for one.
+- **Tests run in the job itself.** It does not wait for CI, and a build
+  published as downloadable must have passed them.
+- **Commits marked `[skip ci]` do not build** — which is how the release
+  workflow's own version-bump commit avoids a pointless duplicate.
+
+**Installing one alongside Play:** these APKs are signed with the upload key,
+while a copy installed from Play is re-signed by Google. Android will not update
+one with the other, so uninstall first when switching between them.
+
+A prerelease accumulates per merge. Delete old ones from the Releases page, or
+with `gh release delete <tag> --cleanup-tag`, when the list gets long.
 
 ## Version numbers
 

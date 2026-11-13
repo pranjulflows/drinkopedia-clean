@@ -1,0 +1,125 @@
+# Builds a signed Android app bundle and APK, and proves both are signed with
+# the upload key rather than the debug key.
+#
+# Shared by the tagged release (release-android.yml) and the build on every
+# merge to main (build-main.yml), so the build and its signature guard exist in
+# exactly one place. The APK check once had to be fixed (keytool cannot read the
+# APK's v2 signature); with two copies, that fix would have had to be made twice.
+#
+# Composite actions cannot read secrets themselves, so the caller passes them
+# in. GitHub still masks them in the log.
+name: Build signed Android release
+description: Builds and verifies a signed app bundle and APK.
+
+inputs:
+  build-name:
+    description: Version name, e.g. 1.0.1
+    required: true
+  build-number:
+    description: Version code, e.g. 2
+    required: true
+  cocktaildb-key:
+    description: TheCocktailDB API key compiled into the app
+    required: true
+  keystore-base64:
+    description: The upload keystore, base64-encoded
+    required: true
+  keystore-password:
+    description: The keystore's store password
+    required: true
+  key-password:
+    description: The key's own password
+    required: true
+  key-alias:
+    description: The key alias
+    required: true
+
+outputs:
+  aab:
+    description: Path to the signed app bundle
+    value: build/app/outputs/bundle/release/app-release.aab
+  apk:
+    description: Path to the signed APK
+    value: build/app/outputs/flutter-apk/app-release.apk
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the upload keystore
+      shell: bash
+      env:
+        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        STORE_PASSWORD: ${{ inputs.keystore-password }}
+        KEY_PASSWORD: ${{ inputs.key-password }}
+        KEY_ALIAS: ${{ inputs.key-alias }}
+      run: |
+        set -euo pipefail
+        keystore="$RUNNER_TEMP/upload.jks"
+        printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+        # android/build.gradle.kts reads this file and falls back to the
+        # debug key when it is absent — which Play rejects, so a silent
+        # fallback would waste an upload rather than ship something unsigned.
+        printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=%s\n' \
+          "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" "$keystore" \
+          > android/key.properties
+
+    - name: Build the app bundle and the APK
+      shell: bash
+      env:
+        COCKTAILDB_KEY: ${{ inputs.cocktaildb-key }}
+        BUILD_NAME: ${{ inputs.build-name }}
+        BUILD_CODE: ${{ inputs.build-number }}
+      run: |
+        set -euo pipefail
+        # The bundle is what Play takes. The APK is for installing directly
+        # — a tester on a device, or a quick check without Play in the way.
+        for target in appbundle apk; do
+          .github/scripts/with-native-asset-retry.sh \
+            flutter build "$target" --release \
+              --build-name="$BUILD_NAME" \
+              --build-number="$BUILD_CODE" \
+              --dart-define=COCKTAILDB_KEY="$COCKTAILDB_KEY"
+        done
+
+    - name: Confirm both are signed with the upload key, not the debug key
+      shell: bash
+      run: |
+        set -euo pipefail
+        bundle=build/app/outputs/bundle/release/app-release.aab
+        apk=build/app/outputs/flutter-apk/app-release.apk
+
+        # The two need different tools. The bundle carries a JAR signature,
+        # which keytool reads. The APK does not: with minSdk 24, Gradle
+        # signs it with APK Signature Scheme v2 and leaves v1 off, so
+        # keytool prints nothing at all for it — which would reject a
+        # perfectly well-signed APK and fail every release. apksigner is the
+        # tool that understands v2.
+        apksigner=$(ls "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+        if [ -z "$apksigner" ]; then
+          echo "::error::apksigner not found — refusing to ship an APK whose signature cannot be checked"
+          exit 1
+        fi
+
+        bundle_owner=$(keytool -printcert -jarfile "$bundle" | sed -n 's/^Owner: //p' | head -1)
+        # apksigner has printed this line as both "Signer #1 certificate DN"
+        # and "V2 Signer: certificate DN" across build-tools versions.
+        "$apksigner" verify "$apk"
+        apk_owner=$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate DN: //p' | head -1)
+
+        echo "bundle signed by: $bundle_owner"
+        echo "APK signed by:    $apk_owner"
+
+        # Play rejects a debug-signed upload; catching it here says why.
+        for owner in "$bundle_owner" "$apk_owner"; do
+          case "$owner" in
+            *"Android Debug"*|"")
+              echo "::error::An artifact is debug-signed or unsigned"; exit 1 ;;
+          esac
+        done
+
+    # Runs even when a step above failed, so a broken build never leaves the
+    # keystore or its passwords lying on the runner.
+    - name: Remove the signing material
+      if: always()
+      shell: bash
+      run: rm -f android/key.properties "$RUNNER_TEMP/upload.jks"

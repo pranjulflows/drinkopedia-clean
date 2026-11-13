@@ -108,3 +108,6 @@ only watched `main` would leave the branch that receives all the work unchecked.
 signed app bundle and uploads it to Play Console's internal testing track, and refuses to
 run on a commit that is not on `main` — which is what makes "`main` is release-only" a
 rule the pipeline enforces rather than a convention. See `docs/release-pipeline.md`.
+
+`.github/workflows/build-main.yml` runs on every merge to `main`: it builds a signed AAB
+and APK and publishes them on the Releases page as a prerelease, without touching Play.
