@@ -1,0 +1,186 @@
+# Builds a signed app bundle and APK on every merge to main, and publishes
+# both on the repo's Releases page so they can be downloaded without Play.
+#
+# Nothing here touches Play Console. Shipping to testers stays a deliberate
+# act: push a v* tag and release-android.yml takes over. These builds are for
+# anyone who wants the current main on a device.
+#
+# Secrets this needs (all already used by the release workflow):
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD,
+#   ANDROID_KEY_ALIAS, COCKTAILDB_KEY
+name: Build (main)
+
+on:
+  push:
+    branches: [main]
+    # A commit marked [skip ci] does not run this — which is how the release
+    # workflow's own version-bump commit avoids a pointless second build.
+
+permissions:
+  # write, to publish the build on the Releases page.
+  contents: write
+
+# Every merge gets its own build, in order. Cancelling an older run would
+# leave a merged commit with nothing to download.
+concurrency:
+  group: build-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags, to find where the previous build's changelog left off.
+          fetch-depth: 0
+
+      - name: Check the required secrets are set
+        env:
+          REQUIRED: >-
+            ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD
+            ANDROID_KEY_ALIAS COCKTAILDB_KEY
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          COCKTAILDB_KEY: ${{ secrets.COCKTAILDB_KEY }}
+        run: |
+          missing=
+          for name in $REQUIRED; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            exit 1
+          fi
+
+      - name: Work out the version
+        id: version
+        run: |
+          set -euo pipefail
+          line=$(grep -m1 '^version:' pubspec.yaml | tr -d '[:space:]')
+          line="${line#version:}"
+          name="${line%%+*}"
+          current="${line##*+}"
+          echo "$name" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "::error::No usable version name in pubspec.yaml, got '$name'"; exit 1; }
+          echo "$current" | grep -Eq '^[0-9]+$' || {
+            echo "::error::No build number in pubspec.yaml's version line"; exit 1; }
+
+          # The same version name as main, and the build number the next Play
+          # release would take. Nothing is written back: these builds never
+          # reach Play, so they spend no build number.
+          code=$((current + 1))
+          short="${GITHUB_SHA::7}"
+
+          # Not v-prefixed, on purpose. The release workflow triggers on v*
+          # tags, and finds the previous Play release by matching v[0-9]* —
+          # a v1.0.1-b3 would be mistaken for one.
+          tag="build-${name}-${code}-${short}"
+
+          {
+            echo "name=$name"
+            echo "code=$code"
+            echo "short=$short"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $name, build $code, from $short as $tag"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.9
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Nothing compiles before codegen: retrofit clients, drift tables, JSON
+      # serialisation and typed routes are all generated and gitignored.
+      - name: Generate code
+        run: dart run build_runner build
+
+      # CI runs these on the same push, but this job does not wait for it. A
+      # build published as downloadable has to have passed them itself.
+      - name: Analyze project source
+        run: flutter analyze
+
+      # See dart.yml: retries only a corrupted sqlite3 download.
+      - name: Run tests
+        run: .github/scripts/with-native-asset-retry.sh flutter test
+
+      - name: Build and verify the signed bundle and APK
+        id: build
+        uses: ./.github/actions/android-release-build
+        with:
+          build-name: ${{ steps.version.outputs.name }}
+          build-number: ${{ steps.version.outputs.code }}
+          cocktaildb-key: ${{ secrets.COCKTAILDB_KEY }}
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: Keep the bundle and the APK with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.tag }}
+          path: |
+            ${{ steps.build.outputs.aab }}
+            ${{ steps.build.outputs.apk }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish the build to GitHub Releases
+        # Only for real merges to main, never a test run from a branch.
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          BUILD_NAME: ${{ steps.version.outputs.name }}
+          BUILD_CODE: ${{ steps.version.outputs.code }}
+          SHORT_SHA: ${{ steps.version.outputs.short }}
+          AAB: ${{ steps.build.outputs.aab }}
+          APK: ${{ steps.build.outputs.apk }}
+        run: |
+          set -euo pipefail
+          aab="drinkopedia-${BUILD_NAME}-${BUILD_CODE}-${SHORT_SHA}.aab"
+          apk="drinkopedia-${BUILD_NAME}-${BUILD_CODE}-${SHORT_SHA}.apk"
+          cp "$AAB" "$aab"
+          cp "$APK" "$apk"
+
+          notes=$(printf '%s\n\n%s\n\n%s' \
+            "Built from ${SHORT_SHA} on main. **Not on Play** — this is the current main, for installing directly." \
+            "The APK is signed with the upload key, while a copy installed from Play is re-signed by Google. Android will not update one with the other: uninstall first when switching between them." \
+            "The bundle is here for completeness; Play only ever receives a bundle from a tagged release.")
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # A re-run of this commit's build: refresh the files.
+            gh release upload "$TAG" "$aab" "$apk" --clobber
+            exit 0
+          fi
+
+          # The changelog runs from the previous main build, or the previous
+          # Play release before there was one.
+          since=()
+          if previous=$(git describe --tags --abbrev=0 --match 'build-*' "${GITHUB_SHA}^" 2>/dev/null) ||
+             previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${GITHUB_SHA}^" 2>/dev/null); then
+            since=(--notes-start-tag "$previous")
+          fi
+
+          # A prerelease, and never "Latest": that badge belongs to the
+          # releases that actually went to Play.
+          gh release create "$TAG" "$aab" "$apk" \
+            --target "$GITHUB_SHA" \
+            --title "Build ${BUILD_NAME} (${BUILD_CODE}) · ${SHORT_SHA}" \
+            --notes "$notes" \
+            --prerelease \
+            --latest=false \
+            --generate-notes ${since[@]+"${since[@]}"}
